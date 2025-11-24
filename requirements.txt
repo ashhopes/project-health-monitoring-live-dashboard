@@ -1,0 +1,6 @@
+streamlit
+streamlit-autorefresh
+pandas
+google-cloud-bigquery
+google-auth
+pyserial
