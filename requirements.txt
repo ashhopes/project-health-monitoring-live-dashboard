@@ -1,6 +1,5 @@
 streamlit
-streamlit-autorefresh
+plotly
 pandas
 google-cloud-bigquery
 google-auth
-pyserial
