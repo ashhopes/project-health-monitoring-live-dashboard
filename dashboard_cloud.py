@@ -30,7 +30,6 @@ st.markdown(
     .stSidebar { background-color: #f7ede2; }
     h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
 
-    /* White box sections (your desired style) */
     .section {
         background: #fff;
         padding: 20px;
@@ -39,8 +38,6 @@ st.markdown(
         box-shadow: 0 0 10px rgba(0,0,0,0.1);
         display: block;
     }
-
-    /* Subject and prediction boxes */
     .subject-box {
         background-color: #ffffff;
         border: 2px solid #800000;
@@ -54,15 +51,6 @@ st.markdown(
         border-radius: 10px;
         padding: 15px;
         margin-bottom: 25px;
-    }
-
-     .section { 
-      background: #fff;
-      padding: 20px;
-      margin-bottom: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1); 
-      display: block;
     }
     </style>
     """,
@@ -120,16 +108,15 @@ try:
         """
         subject_ids = client.query(subject_query).to_dataframe()['id_user'].tolist()
 
-        # --- Tabs for 3 layouts ---
+        # --- Tabs ---
         tab1, tab2, tab3 = st.tabs(["📈 Overview", "👤 Subject Info", "🤖 Predictions"])
 
-        # --- Layout 1: System Overview (white sections) ---
+        # --- Layout 1: Overview ---
         with tab1:
             st.subheader("📈 Section 1: System Overview")
 
-            # Alerts (awareness at top)
-           <div class="section">
-            <h2> ⚠️ Alerts</h2> 
+            # Alerts
+            st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
                 alerts.append("Some subjects have SpO₂ below 95%")
@@ -137,29 +124,23 @@ try:
                 alerts.append("High heart rate detected (>120 BPM)")
             if 'temp' in df.columns and (df['temp'] > 38).any():
                 alerts.append("Fever detected (Temp > 38°C)")
-
             if alerts:
                 for msg in alerts:
                     st.warning(msg)
             else:
                 st.success("All vitals are within normal range.")
-            </div>
-
-            # Summary metrics
-            st.markdown("<div class='section'>", unsafe_allow_html=True)
-            st.markdown("### 📊 Summary Metrics")
-            col1, col2, col3 = st.columns(3)
-            avg_hr = f"{df['hr'].mean():.1f} BPM" if 'hr' in df.columns and df['hr'].notna().any() else "N/A"
-            avg_spo2 = f"{df['spo2'].mean():.1f} %" if 'spo2' in df.columns and df['spo2'].notna().any() else "N/A"
-            avg_temp = f"{df['temp'].mean():.1f} °C" if 'temp' in df.columns and df['temp'].notna().any() else "N/A"
-            col1.metric("Average HR", avg_hr)
-            col2.metric("Average SpO₂", avg_spo2)
-            col3.metric("Average Temp", avg_temp)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Line chart trends
-            st.markdown("<div class='section'>", unsafe_allow_html=True)
-            st.markdown("### 📈 Health Trends Over Time")
+            # Summary Metrics
+            st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
+            col2.metric("Average SpO₂", f"{df['spo2'].mean():.1f} %")
+            col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Line Chart
+            st.markdown("<div class='section'><h2>📈 Health Trends Over Time</h2>", unsafe_allow_html=True)
             trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
             fig = go.Figure()
             for col, color, label in [
@@ -172,37 +153,29 @@ try:
                         x=trend_df.index, y=trend_df[col],
                         mode="lines+markers", name=label, line=dict(color=color)
                     ))
-            fig.update_layout(
-                xaxis_title="Time",
-                yaxis_title="Values",
-                plot_bgcolor="#fdf6ec",
-                paper_bgcolor="#fdf6ec",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
+            fig.update_layout(xaxis_title="Time", yaxis_title="Values",
+                              plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Active subjects
-            st.markdown("<div class='section'>", unsafe_allow_html=True)
-            st.markdown("### 👥 Active Subjects")
-            active_subjects = df['id_user'].dropna().unique().tolist() if 'id_user' in df.columns else []
+            # Active Subjects
+            st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
+            active_subjects = df['id_user'].dropna().unique().tolist()
             st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
-            st.write(active_subjects if active_subjects else "No active subjects detected.")
+            st.write(active_subjects)
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- Layout 2: Subject Info (dynamic by id_user) ---
+        # --- Layout 2: Subject Info ---
         with tab2:
             st.subheader("👤 Section 2: Subject Info")
             for sid in subject_ids:
                 st.markdown("<div class='subject-box'>", unsafe_allow_html=True)
                 st.markdown(f"### 🧑 Subject {sid} (ID: {sid})")
-
                 subj_df = df[df['id_user'] == sid].copy()
                 if subj_df.empty:
                     st.warning(f"No data found for Subject {sid}")
                 else:
                     subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
-
                     fig = go.Figure()
                     for col, color, label in [
                         ("temp", "#d35400", "Temperature (°C)"),
@@ -216,13 +189,15 @@ try:
                             ))
                     fig.update_layout(title=f"Health Trends for Subject {sid}")
                     st.plotly_chart(fig, use_container_width=True)
-
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 3: Predictions ---
+                # --- Layout 3: Predictions ---
         with tab3:
             st.subheader("🤖 Section 3: ML Predictions by Subject")
+
+            # Query ML predictions from BigQuery
             pred_query = f"""
                 SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
                 FROM ML.PREDICT(
@@ -237,17 +212,25 @@ try:
             """
             pred_df = client.query(pred_query).to_dataframe()
 
+            # Loop through subjects
             for sid in subject_ids:
                 st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
                 st.markdown(f"### 🔍 Predictions for Subject {sid}")
+
                 sub_pred = pred_df[pred_df['id_user'] == sid]
                 if sub_pred.empty:
                     st.warning(f"No predictions found for Subject {sid}")
                 else:
+                    # Show prediction table
                     st.dataframe(sub_pred, use_container_width=True)
+
+                    # Show bar chart of cluster counts
                     cluster_counts = sub_pred.groupby("predicted_cluster").size()
                     st.bar_chart(cluster_counts)
-                st.markdown("</div>", unsafe_allow_html=True)
 
+                st.markdown("</div>", unsafe_allow_html=True)
+# --- Real-time Key Metrics ---
+st.markdown("## 🩺 Real-time Key Metrics")
 except Exception as e:
-    st.error(f"BigQuery error: {e}")
+    st.error(f"❌ Error fetching data: {e}")
+    df = pd.DataFrame()
