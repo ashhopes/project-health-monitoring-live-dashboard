@@ -183,7 +183,7 @@ try:
                   SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp
                   FROM `{table_id}`
                   ORDER BY timestamp DESC
-                  LIMIT 50
+                  LIMIT 500
                 ))
             """
             pred_df = client.query(pred_query).to_dataframe()
