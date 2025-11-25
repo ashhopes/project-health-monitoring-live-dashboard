@@ -229,8 +229,6 @@ try:
                     st.bar_chart(cluster_counts)
 
                 st.markdown("</div>", unsafe_allow_html=True)
-# --- Real-time Key Metrics ---
-st.markdown("## 🩺 Real-time Key Metrics")
 except Exception as e:
     st.error(f"❌ Error fetching data: {e}")
     df = pd.DataFrame()
