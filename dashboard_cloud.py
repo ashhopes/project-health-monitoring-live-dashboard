@@ -13,7 +13,7 @@ st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("umpsa.png"); 
+        background-image: url("http://www.umpsa.edu.my/sites/default/files/slider/ZAF_1540-edit.jpg");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
