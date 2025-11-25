@@ -185,3 +185,5 @@ try:
                 sub_pred = pred_df[pred_df['id_user'] == subj['id']]
                 st.dataframe(sub_pred, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
+except Exception as e:
+    st.error(f"BigQuery error: {e}")
