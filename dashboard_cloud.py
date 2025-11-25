@@ -55,6 +55,15 @@ st.markdown(
         padding: 15px;
         margin-bottom: 25px;
     }
+
+     .section { 
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+      display: block;
+    }
     </style>
     """,
     unsafe_allow_html=True
