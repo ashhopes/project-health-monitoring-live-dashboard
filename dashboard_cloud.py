@@ -8,16 +8,36 @@ import time
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
 
-# --- Custom Elegant Theme (Maroon + Beige + Gold + Card Style) ---
+# --- Custom Elegant Theme (Maroon + Beige + Gold + Background Image + Card Style) ---
 st.markdown(
     """
     <style>
-    .stApp { background-color: #fdf6ec; }
+    .stApp {
+        background-image: url("umpsa.png"); /* tukar dengan URL gambar kamu */
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background-color: rgba(255, 255, 255, 0.7); /* overlay supaya teks jelas */
+        z-index: -1;
+    }
     .stSidebar { background-color: #f7ede2; }
     h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
     .stDataFrame { background-color: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #bfa76f; }
-    .css-1d391kg, .css-1v3fvcr { color: #2e2e2e; }
-    .stMarkdown hr { border-top: 1px solid #bfa76f; }
+    .section-wrapper {
+        background-color: #ffffff;
+        border: 2px solid #bfa76f;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
     .subject-box {
         background-color: #ffffff;
         border: 2px solid #800000;
@@ -85,6 +105,7 @@ try:
 
         # --- Layout 1: Live Data ---
         with tab1:
+            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
             st.subheader("📈 Section 1: Live Sensor Data")
             trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
 
@@ -105,20 +126,20 @@ try:
 
             with st.expander("🗃️ Show Latest Sensor Data"):
                 st.dataframe(df, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject/Testor Info ---
         with tab2:
             st.subheader("👤 Section 2: Subject Info")
             subjects = [
-                {"name": "Noryusnita", "age": 48, "gender": "Female", "weight": 67.8, "height": 159, "bmi": 28.5, "id": "U1"},
-                {"name": "Arif", "age": 50, "gender": "Male", "weight": 89, "height": 176, "bmi": 27.0, "id": "U2"},
-                {"name": "Ayreen", "age": 25, "gender": "Female", "weight": 55, "height": 160, "bmi": 21.5, "id": "U3"},
-                {"name": "Kayatri", "age": 29, "gender": "Female", "weight": 70, "height": 170, "bmi": 24.2, "id": "U4"},
-                {"name": "Shahirah", "age": 22, "gender": "Female", "weight": 60, "height": 165, "bmi": 22.0, "id": "U5"},
+                {"name": "Noryusnita", "age": 48, "gender": "Female", "weight": 67.8, "height": 159, "bmi": 28.5, "id": "U1", "com_port": "COM8"},
+                {"name": "Arif", "age": 50, "gender": "Male", "weight": 89, "height": 176, "bmi": 27.0, "id": "U2", "com_port": "COM9"},
+                {"name": "Ayreen", "age": 25, "gender": "Female", "weight": 55, "height": 160, "bmi": 21.5, "id": "U3", "com_port": "COM10"},
+                {"name": "Kayatri", "age": 29, "gender": "Female", "weight": 70, "height": 170, "bmi": 24.2, "id": "U4", "com_port": "COM12"},
             ]
             for subj in subjects:
                 st.markdown("<div class='subject-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🧑 {subj['name']} (ID: {subj['id']})")
+                st.markdown(f"### 🧑 {subj['name']} (ID: {subj['id']}, Port: {subj['com_port']})")
                 st.write(
                     f"Age: {subj['age']} | Gender: {subj['gender']} | "
                     f"Weight: {subj['weight']} kg | Height: {subj['height']} cm | BMI: {subj['bmi']}"
@@ -160,12 +181,4 @@ try:
             pred_df = client.query(pred_query).to_dataframe()
 
             for subj in subjects:
-                st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🔍 Predictions for {subj['name']} (ID: {subj['id']})")
-                sub_pred = pred_df[pred_df['id_user'] == subj['id']]
-                st.dataframe(sub_pred, use_container_width=True)
-                st.bar_chart(sub_pred.groupby("predicted_cluster").size())
-                st.markdown("</div>", unsafe_allow_html=True)
-
-except Exception as e:
-    st.error(f"BigQuery error: {e}")
+                st.markdown("<div class
