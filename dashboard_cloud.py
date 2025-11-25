@@ -45,13 +45,6 @@ st.markdown(
         padding: 15px;
         margin-bottom: 25px;
     }
-    .prediction-box {
-        background-color: #ffffff;
-        border: 2px solid #bfa76f;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 25px;
-    }
     </style>
     """,
     unsafe_allow_html=True
@@ -111,7 +104,7 @@ try:
         # --- Tabs ---
         tab1, tab2, tab3 = st.tabs(["📈 Overview", "👤 Subject Info", "🤖 Predictions"])
 
-        # --- Layout 1: Overview ---
+        # --- Layout 1: System Overview ---
         with tab1:
             st.subheader("📈 Section 1: System Overview")
 
@@ -153,8 +146,11 @@ try:
                         mode="lines+markers", name=label,
                         line=dict(color=color, dash="dot")
                     ))
-            fig.update_layout(xaxis_title="Time", yaxis_title="Values",
-                              plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
+            fig.update_layout(
+                xaxis_title="Time", yaxis_title="Values",
+                plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -191,6 +187,7 @@ try:
                     st.plotly_chart(fig, use_container_width=True)
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
+
 
                 # --- Layout 3: Predictions ---
         with tab3:
