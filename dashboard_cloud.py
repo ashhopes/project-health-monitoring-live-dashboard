@@ -13,7 +13,7 @@ st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("umpsa.png");
+        background-image: url("umpsa.png"); 
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
@@ -99,6 +99,14 @@ try:
     else:
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors="coerce")
 
+        # --- Get active subject IDs dynamically ---
+        subject_query = f"""
+            SELECT DISTINCT id_user
+            FROM `{table_id}`
+            WHERE id_user IS NOT NULL
+        """
+        subject_ids = client.query(subject_query).to_dataframe()['id_user'].tolist()
+
         # --- Tabs untuk 3 layout ---
         tab1, tab2, tab3 = st.tabs(["📈 Live Data", "👤 Subject/Testor Info", "🤖 Predictions"])
 
@@ -130,38 +138,31 @@ try:
         # --- Layout 2: Subject/Testor Info ---
         with tab2:
             st.subheader("👤 Section 2: Subject Info")
-            subjects = [
-                {"name": "Noryusnita", "age": 48, "gender": "Female", "weight": 67.8, "height": 159, "bmi": 28.5, "id": "U1", "com_port": "COM8"},
-                {"name": "Arif", "age": 50, "gender": "Male", "weight": 89, "height": 176, "bmi": 27.0, "id": "U2", "com_port": "COM9"},
-                {"name": "Ayreen", "age": 25, "gender": "Female", "weight": 55, "height": 160, "bmi": 21.5, "id": "U3", "com_port": "COM10"},
-                {"name": "Kayatri", "age": 29, "gender": "Female", "weight": 70, "height": 170, "bmi": 24.2, "id": "U4", "com_port": "COM12"},
-            ]
-            for subj in subjects:
+            for sid in subject_ids:
                 st.markdown("<div class='subject-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🧑 {subj['name']} (ID: {subj['id']}, Port: {subj['com_port']})")
-                st.write(
-                    f"Age: {subj['age']} | Gender: {subj['gender']} | "
-                    f"Weight: {subj['weight']} kg | Height: {subj['height']} cm | BMI: {subj['bmi']}"
-                )
+                st.markdown(f"### 🧑 Subject {sid} (ID: {sid})")
 
-                subj_df = df[df['id_user'] == subj['id']].head(100)
-                subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
+                subj_df = df[df['id_user'] == sid].head(100)
+                if subj_df.empty:
+                    st.warning(f"No data found for Subject {sid}")
+                else:
+                    subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
 
-                fig = go.Figure()
-                for col, color, label in [
-                    ("temp", "#d35400", "Temperature (°C)"),
-                    ("hr", "#c0392b", "Heart Rate (BPM)"),
-                    ("spo2", "#27ae60", "SpO₂ (%)")
-                ]:
-                    if col in subj_df.columns:
-                        fig.add_trace(go.Scatter(
-                            x=subj_df.index, y=subj_df[col],
-                            mode="lines+markers", name=label, line=dict(color=color)
-                        ))
-                fig.update_layout(title=f"Health Trends for {subj['name']}")
-                st.plotly_chart(fig, use_container_width=True)
+                    fig = go.Figure()
+                    for col, color, label in [
+                        ("temp", "#d35400", "Temperature (°C)"),
+                        ("hr", "#c0392b", "Heart Rate (BPM)"),
+                        ("spo2", "#27ae60", "SpO₂ (%)")
+                    ]:
+                        if col in subj_df.columns:
+                            fig.add_trace(go.Scatter(
+                                x=subj_df.index, y=subj_df[col],
+                                mode="lines+markers", name=label, line=dict(color=color)
+                            ))
+                    fig.update_layout(title=f"Health Trends for Subject {sid}")
+                    st.plotly_chart(fig, use_container_width=True)
 
-                st.dataframe(subj_df, use_container_width=True)
+                    st.dataframe(subj_df, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 3: Predictions ---
@@ -179,11 +180,16 @@ try:
             """
             pred_df = client.query(pred_query).to_dataframe()
 
-            for subj in subjects:
+            for sid in subject_ids:
                 st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🔍 Predictions for {subj['name']} (ID: {subj['id']}, Port: {subj['com_port']})")
-                sub_pred = pred_df[pred_df['id_user'] == subj['id']]
-                st.dataframe(sub_pred, use_container_width=True)
+                st.markdown(f"### 🔍 Predictions for Subject {sid}")
+                sub_pred = pred_df[pred_df['id_user'] == sid]
+                if sub_pred.empty:
+                    st.warning(f"No predictions found for Subject {sid}")
+                else:
+                    st.dataframe(sub_pred, use_container_width=True)
+                    st.bar_chart(sub_pred.groupby("predicted_cluster").size())
                 st.markdown("</div>", unsafe_allow_html=True)
+
 except Exception as e:
     st.error(f"BigQuery error: {e}")
