@@ -13,8 +13,7 @@ st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("umpsa.png"); /* tukar dengan URL gambar kamu */
-        background-size: cover;
+        background-image: url("umpsa.png");
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
@@ -173,12 +172,4 @@ try:
                 FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
                 (
                   SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
-                  FROM `{table_id}`
-                  ORDER BY timestamp DESC
-                  LIMIT 100
-                ))
-            """
-            pred_df = client.query(pred_query).to_dataframe()
-
-            for subj in subjects:
-                st.markdown("<div class
+                  FROM `{table_id
