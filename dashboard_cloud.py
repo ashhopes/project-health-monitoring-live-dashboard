@@ -108,31 +108,42 @@ try:
         subject_ids = client.query(subject_query).to_dataframe()['id_user'].tolist()
 
         # --- Tabs untuk 3 layout ---
-        tab1, tab2, tab3 = st.tabs(["📈 Live Data", "👤 Subject/Testor Info", "🤖 Predictions"])
+        tab1, tab2, tab3 = st.tabs(["📈 Overview", "👤 Subject Info", "🤖 Predictions"])
 
-        # --- Layout 1: Live Data ---
+        # --- Layout 1: Overview ---
         with tab1:
             st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
-            st.subheader("📈 Section 1: Live Sensor Data")
-            trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
+            st.subheader("📈 Section 1: System Overview")
 
-            fig = go.Figure()
-            for col, color, label in [
-                ("temp", "#d35400", "Temperature (°C)"),
-                ("hr", "#c0392b", "Heart Rate (BPM)"),
-                ("spo2", "#27ae60", "SpO₂ (%)")
-            ]:
-                if col in trend_df.columns:
-                    fig.add_trace(go.Scatter(
-                        x=trend_df.index, y=trend_df[col],
-                        mode="lines+markers", name=label, line=dict(color=color)
-                    ))
-            fig.update_layout(title="Live Health Metrics", xaxis_title="Time", yaxis_title="Values",
-                              plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
-            st.plotly_chart(fig, use_container_width=True)
+            # Summary metrics
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
+            col2.metric("Average SpO₂", f"{df['spo2'].mean():.1f} %")
+            col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
 
-            with st.expander("🗃️ Show Latest Sensor Data"):
-                st.dataframe(df, use_container_width=True)
+            # Distribution charts
+            st.markdown("### 📊 Distribution of Health Metrics")
+            dist_fig = go.Figure()
+            dist_fig.add_trace(go.Box(y=df['hr'], name="Heart Rate", marker_color="#c0392b"))
+            dist_fig.add_trace(go.Box(y=df['spo2'], name="SpO₂", marker_color="#27ae60"))
+            dist_fig.add_trace(go.Box(y=df['temp'], name="Temperature", marker_color="#d35400"))
+            dist_fig.update_layout(plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
+            st.plotly_chart(dist_fig, use_container_width=True)
+
+            # Active subjects
+            st.markdown("### 👥 Active Subjects")
+            active_subjects = df['id_user'].unique().tolist()
+            st.write(f"Currently receiving data from {len(active_subjects)} subjects: {active_subjects}")
+
+            # Alerts
+            st.markdown("### ⚠️ Alerts")
+            if (df['spo2'] < 95).any():
+                st.warning("Some subjects have SpO₂ below 95%")
+            if (df['hr'] > 120).any():
+                st.error("High heart rate detected (>120 BPM)")
+            if (df['temp'] > 38).any():
+                st.error("Fever detected (Temp > 38°C)")
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject/Testor Info ---
@@ -188,8 +199,5 @@ try:
                     st.warning(f"No predictions found for Subject {sid}")
                 else:
                     st.dataframe(sub_pred, use_container_width=True)
-                    st.bar_chart(sub_pred.groupby("predicted_cluster").size())
-                st.markdown("</div>", unsafe_allow_html=True)
-
-except Exception as e:
-    st.error(f"BigQuery error: {e}")
+                    st.bar_chart(sub_pred['predicted_cluster'].value_counts().sort_index())
+                st.markdown("</div>", unsafe_allow_html=True)       
