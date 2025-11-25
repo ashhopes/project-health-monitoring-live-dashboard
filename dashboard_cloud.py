@@ -119,8 +119,8 @@ try:
             st.subheader("📈 Section 1: System Overview")
 
             # Alerts (awareness at top)
-            st.markdown("<div class='section'>", unsafe_allow_html=True)
-            st.markdown("### ⚠️ Alerts")
+           <div class="section">
+            <h2> ⚠️ Alerts</h2> 
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
                 alerts.append("Some subjects have SpO₂ below 95%")
@@ -134,7 +134,7 @@ try:
                     st.warning(msg)
             else:
                 st.success("All vitals are within normal range.")
-            st.markdown("</div>", unsafe_allow_html=True)
+            </div>
 
             # Summary metrics
             st.markdown("<div class='section'>", unsafe_allow_html=True)
