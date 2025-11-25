@@ -167,18 +167,23 @@ try:
 
         # --- Layout 3: Predictions ---
         with tab3:
-            st.subheader("🤖 Section 3: ML Predictions by Subject")
-            pred_query = f"""
-                SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
-                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
-                (
-                  SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
-                  FROM `{table_id}`
-                  ORDER BY timestamp DESC
-                  LIMIT 100
-                ))
-            """
-            pred_df = client.query(pred_query).to_dataframe()
+    st.subheader("🤖 Section 3: ML Predictions by Subject")
+    pred_query = f"""
+        SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
+        FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
+        (
+          SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
+          FROM `{table_id}`
+          ORDER BY timestamp DESC
+          LIMIT 100
+        ))
+    """
+    pred_df = client.query(pred_query).to_dataframe()
 
-            for subj in subjects:
-               
+    for subj in subjects:
+        st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
+        st.markdown(f"### 🔍 Predictions for {subj['name']} (ID: {subj['id']}, Port: {subj['com_port']})")
+        sub_pred = pred_df[pred_df['id_user'] == subj['id']]
+        st.dataframe(sub_pred, use_container_width=True)
+        st.bar_chart(sub_pred.groupby("predicted_cluster").size())
+        st.markdown("</div>", unsafe_allow_html=True)
