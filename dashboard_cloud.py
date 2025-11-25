@@ -65,7 +65,7 @@ st.markdown("---")
 st.sidebar.header("⚙️ Controls")
 refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
-st.sidebar.info("Project by mOONbLOOM26 🌙")
+st.sidebar.info("Project by Tg22051-UMPSA🌙")
 
 if refresh_rate > 0:
     time.sleep(refresh_rate)
