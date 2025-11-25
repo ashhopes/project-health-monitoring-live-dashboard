@@ -65,7 +65,7 @@ st.markdown("---")
 st.sidebar.header("⚙️ Controls")
 refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
-st.sidebar.info("Project by Tg22051-UMPSA🌙")
+st.sidebar.info("Project by mOONbLOOM26 🌙")
 
 if refresh_rate > 0:
     time.sleep(refresh_rate)
@@ -112,16 +112,19 @@ try:
 
         # --- Layout 1: Overview ---
         with tab1:
-            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
             st.subheader("📈 Section 1: System Overview")
 
             # Summary metrics
+            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
+            st.markdown("### 📊 Summary Metrics")
             col1, col2, col3 = st.columns(3)
             col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
             col2.metric("Average SpO₂", f"{df['spo2'].mean():.1f} %")
             col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # Distribution charts
+            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
             st.markdown("### 📊 Distribution of Health Metrics")
             dist_fig = go.Figure()
             dist_fig.add_trace(go.Box(y=df['hr'], name="Heart Rate", marker_color="#c0392b"))
@@ -129,13 +132,17 @@ try:
             dist_fig.add_trace(go.Box(y=df['temp'], name="Temperature", marker_color="#d35400"))
             dist_fig.update_layout(plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
             st.plotly_chart(dist_fig, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # Active subjects
+            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
             st.markdown("### 👥 Active Subjects")
             active_subjects = df['id_user'].unique().tolist()
             st.write(f"Currently receiving data from {len(active_subjects)} subjects: {active_subjects}")
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # Alerts
+            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
             st.markdown("### ⚠️ Alerts")
             if (df['spo2'] < 95).any():
                 st.warning("Some subjects have SpO₂ below 95%")
@@ -143,7 +150,6 @@ try:
                 st.error("High heart rate detected (>120 BPM)")
             if (df['temp'] > 38).any():
                 st.error("Fever detected (Temp > 38°C)")
-
             st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject/Testor Info ---
@@ -190,16 +196,6 @@ try:
                 ))
             """
             pred_df = client.query(pred_query).to_dataframe()
-
-            for sid in subject_ids:
-                st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🔍 Predictions for Subject {sid}")
-                sub_pred = pred_df[pred_df['id_user'] == sid]
-                if sub_pred.empty:
-                    st.warning(f"No predictions found for Subject {sid}")
-                else:
-                    st.dataframe(sub_pred, use_container_width=True)
-                    st.bar_chart(sub_pred['predicted_cluster'].value_counts().sort_index())
-                st.markdown("</div>", unsafe_allow_html=True)       
-except Exception as e:
-    st.error(f"BigQuery error: {e}")
+except Exception as e:  
+    st.error(f"❌ Error fetching data: {e}")
+    df = pd.DataFrame()
