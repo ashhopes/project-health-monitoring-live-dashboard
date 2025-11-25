@@ -135,23 +135,23 @@ try:
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
-            col2.metric("Average SpO₂", f"{df['spo2'].mean():.1f} %")
+            col2.metric("minSpO₂", f"{df['spo2'].min():.1f} %")
             col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Line Chart
+            # Health Trends Chart
             st.markdown("<div class='section'><h2>📈 Health Trends Over Time</h2>", unsafe_allow_html=True)
             trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
             fig = go.Figure()
             for col, color, label in [
-                ("temp", "#d35400", "Temperature (°C)"),
                 ("hr", "#c0392b", "Heart Rate (BPM)"),
                 ("spo2", "#27ae60", "SpO₂ (%)")
             ]:
                 if col in trend_df.columns and trend_df[col].notna().any():
                     fig.add_trace(go.Scatter(
                         x=trend_df.index, y=trend_df[col],
-                        mode="lines+markers", name=label, line=dict(color=color)
+                        mode="lines+markers", name=label,
+                        line=dict(color=color, dash="dot")
                     ))
             fig.update_layout(xaxis_title="Time", yaxis_title="Values",
                               plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
@@ -162,7 +162,7 @@ try:
             st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
             active_subjects = df['id_user'].dropna().unique().tolist()
             st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
-            st.write(active_subjects)
+            st.json({i: sid for i, sid in enumerate(active_subjects)})
             st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject Info ---
@@ -192,7 +192,6 @@ try:
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- Layout 3: Predictions ---
                 # --- Layout 3: Predictions ---
         with tab3:
             st.subheader("🤖 Section 3: ML Predictions by Subject")
@@ -230,5 +229,5 @@ try:
 
                 st.markdown("</div>", unsafe_allow_html=True)
 except Exception as e:
-    st.error(f"❌ Error fetching data: {e}")
-    df = pd.DataFrame()
+    st.error(f"❌ Error fetching data: {e}")    
+           
