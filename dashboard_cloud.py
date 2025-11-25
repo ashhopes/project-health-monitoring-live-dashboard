@@ -8,12 +8,12 @@ import time
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
 
-# --- Custom Elegant Theme (Maroon + Beige + Gold + Background Image + Card Style) ---
+# --- Custom Elegant Theme ---
 st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("https://i.imgur.com/yourimage.jpg"); /* tukar dengan URL gambar kamu */
+        background-image: url("umpsa.png");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
@@ -29,7 +29,6 @@ st.markdown(
     }
     .stSidebar { background-color: #f7ede2; }
     h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
-    .stDataFrame { background-color: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #bfa76f; }
     .section-wrapper {
         background-color: #ffffff;
         border: 2px solid #bfa76f;
@@ -178,12 +177,11 @@ try:
                   LIMIT 100
                 ))
             """
-pred_df = client.query(pred_query).to_dataframe()
+            pred_df = client.query(pred_query).to_dataframe()
 
-for subj in subjects:
-        st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
-        st.markdown(f"### 🔍 Predictions for {subj['name']} (ID: {subj['id']}, Port: {subj['com_port']})")
-        sub_pred = pred_df[pred_df['id_user'] == subj['id']]
-        st.dataframe(sub_pred, use_container_width=True)
-        st.bar_chart(sub_pred.groupby("predicted_cluster").size())
-        st.markdown("</div>", unsafe_allow_html=True)
+            for subj in subjects:
+                st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
+                st.markdown(f"### 🔍 Predictions for {subj['name']} (ID: {subj['id']}, Port: {subj['com_port']})")
+                sub_pred = pred_df[pred_df['id_user'] == subj['id']]
+                st.dataframe(sub_pred, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
