@@ -3,26 +3,19 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import plotly.graph_objects as go
-import os
-import time
 
 # --- Page setup ---
 st.set_page_config(page_title="Health Monitoring Dashboard", layout="wide")
 st.title("🧠 Health Monitoring System with LoRa")
 
-# --- Unified BigQuery Authentication ---
-def get_bigquery_client():
-    if "gcp" in st.secrets:  # Cloud mode
-        credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
-        project_id = st.secrets["gcp"]["project_id"]
-        return bigquery.Client(credentials=credentials, project=project_id, location="asia-southeast1")
-    elif os.path.exists("monitoring-system-with-lora.json"):  # Local mode
-        credentials = service_account.Credentials.from_service_account_file("monitoring-system-with-lora.json")
-        return bigquery.Client(credentials=credentials, project="monitoring-system-with-lora", location="asia-southeast1")
-    else:
-        raise RuntimeError("❌ No credentials found. Please set Streamlit secrets or provide JSON file.")
-
-client = get_bigquery_client()
+# --- BigQuery Authentication (using secrets.toml) ---
+# Streamlit Cloud will load credentials from .streamlit/secrets.toml
+credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
+client = bigquery.Client(
+    credentials=credentials,
+    project=st.secrets["gcp"]["project_id"],
+    location="asia-southeast1"   # Malaysia/Singapore region
+)
 
 # --- Table reference ---
 table_id = "monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2"
@@ -37,11 +30,6 @@ def fetch_latest(n=100):
         LIMIT {n}
     """
     return client.query(query).to_dataframe()
-
-# --- Auto-refresh toggle ---
-refresh_rate = st.sidebar.slider("⏱️ Auto-refresh every (seconds)", 0, 120, 30)
-if refresh_rate > 0:
-    time.sleep(refresh_rate)
 
 try:
     df = fetch_latest()
@@ -80,13 +68,10 @@ try:
                 gauge={'axis': {'range': [70, 100]}}
             )), use_container_width=True)
 
-        # Trend chart (health metrics)
+        # Health trends
         st.subheader("📈 Health Trends (last 100 samples)")
         trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
-        try:
-            trend_df.index = pd.to_datetime(trend_df.index)
-        except Exception:
-            pass
+        trend_df.index = pd.to_datetime(trend_df.index, errors="coerce")
 
         fig = go.Figure()
         for col, color, label in [
@@ -108,9 +93,8 @@ try:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # Motion charts (accelerometer + gyroscope)
+        # Motion trends
         st.subheader("🎢 Motion Data Trends (last 100 samples)")
-
         motion_fig = go.Figure()
         for col, color, label in [
             ("ax", "blue", "Accel X"),
