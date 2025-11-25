@@ -8,8 +8,36 @@ import time
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
 
+# --- Custom Muji Style (Maroon + Beige) ---
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #f9f5f0; /* beige background */
+    }
+    .stSidebar {
+        background-color: #f2e9e4; /* lighter beige for sidebar */
+    }
+    h1, h2, h3 {
+        color: #800000; /* maroon headings */
+        font-family: 'Helvetica Neue', sans-serif;
+        font-weight: 600;
+    }
+    .stDataFrame {
+        background-color: #ffffff;
+        border-radius: 8px;
+        padding: 10px;
+    }
+    .css-1d391kg, .css-1v3fvcr {
+        color: #333333; /* neutral text */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # --- Header ---
-st.markdown("<h1 style='text-align: center; color: #2E86C1;'>🧠 Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🧠 Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center;'>Real-time monitoring of vital signs and motion data using LoRa sensors</p>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -66,21 +94,21 @@ try:
                     mode="gauge+number",
                     value=latest.get("temp") or 0,
                     title={'text': "Temperature (°C)"},
-                    gauge={'axis': {'range': [20, 45]}}
+                    gauge={'axis': {'range': [20, 45], 'bar': {'color': "#800000"}}}
                 )), use_container_width=True)
             with col2:
                 st.plotly_chart(go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=latest.get("hr") or 0,
                     title={'text': "Heart Rate (BPM)"},
-                    gauge={'axis': {'range': [30, 180]}}
+                    gauge={'axis': {'range': [30, 180], 'bar': {'color': "#800000"}}}
                 )), use_container_width=True)
             with col3:
                 st.plotly_chart(go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=latest.get("spo2") or 0,
                     title={'text': "SpO₂ (%)"},
-                    gauge={'axis': {'range': [70, 100]}}
+                    gauge={'axis': {'range': [70, 100], 'bar': {'color': "#800000"}}}
                 )), use_container_width=True)
 
         # --- Tab 2: Health Trends ---
@@ -91,9 +119,9 @@ try:
 
             fig = go.Figure()
             for col, color, label in [
-                ("temp", "orange", "Temperature (°C)"),
-                ("hr", "red", "Heart Rate (BPM)"),
-                ("spo2", "green", "SpO₂ (%)")
+                ("temp", "#d35400", "Temperature (°C)"),
+                ("hr", "#c0392b", "Heart Rate (BPM)"),
+                ("spo2", "#27ae60", "SpO₂ (%)")
             ]:
                 if col in trend_df.columns:
                     fig.add_trace(go.Scatter(
@@ -105,7 +133,9 @@ try:
                 xaxis_title="Timestamp",
                 yaxis_title="Values",
                 legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-                height=500
+                height=500,
+                plot_bgcolor="#f9f5f0",
+                paper_bgcolor="#f9f5f0"
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -114,12 +144,12 @@ try:
             st.subheader("🎢 Accelerometer & Gyroscope (last samples)")
             motion_fig = go.Figure()
             for col, color, label in [
-                ("ax", "blue", "Accel X"),
-                ("ay", "purple", "Accel Y"),
-                ("az", "cyan", "Accel Z"),
-                ("gx", "brown", "Gyro X"),
-                ("gy", "magenta", "Gyro Y"),
-                ("gz", "gray", "Gyro Z")
+                ("ax", "#34495e", "Accel X"),
+                ("ay", "#7f8c8d", "Accel Y"),
+                ("az", "#95a5a6", "Accel Z"),
+                ("gx", "#8e44ad", "Gyro X"),
+                ("gy", "#9b59b6", "Gyro Y"),
+                ("gz", "#bdc3c7", "Gyro Z")
             ]:
                 if col in trend_df.columns:
                     motion_fig.add_trace(go.Scatter(
@@ -131,7 +161,9 @@ try:
                 xaxis_title="Timestamp",
                 yaxis_title="Sensor Values",
                 legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-                height=500
+                height=500,
+                plot_bgcolor="#f9f5f0",
+                paper_bgcolor="#f9f5f0"
             )
             st.plotly_chart(motion_fig, use_container_width=True)
 
