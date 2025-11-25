@@ -29,14 +29,18 @@ st.markdown(
     }
     .stSidebar { background-color: #f7ede2; }
     h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
-    .section-wrapper {
-        background-color: #ffffff;
-        border: 2px solid #bfa76f;
-        border-radius: 12px;
+
+    /* White box sections (your desired style) */
+    .section {
+        background: #fff;
         padding: 20px;
-        margin-bottom: 30px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        display: block;
     }
+
+    /* Subject and prediction boxes */
     .subject-box {
         background-color: #ffffff;
         border: 2px solid #800000;
@@ -107,59 +111,84 @@ try:
         """
         subject_ids = client.query(subject_query).to_dataframe()['id_user'].tolist()
 
-        # --- Tabs untuk 3 layout ---
+        # --- Tabs for 3 layouts ---
         tab1, tab2, tab3 = st.tabs(["📈 Overview", "👤 Subject Info", "🤖 Predictions"])
 
-        # --- Layout 1: Overview ---
+        # --- Layout 1: System Overview (white sections) ---
         with tab1:
             st.subheader("📈 Section 1: System Overview")
 
-            # Summary metrics
-            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
-            st.markdown("### 📊 Summary Metrics")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
-            col2.metric("Average SpO₂", f"{df['spo2'].mean():.1f} %")
-            col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
+            # Alerts (awareness at top)
+            st.markdown("<div class='section'>", unsafe_allow_html=True)
+            st.markdown("### ⚠️ Alerts")
+            alerts = []
+            if 'spo2' in df.columns and (df['spo2'] < 95).any():
+                alerts.append("Some subjects have SpO₂ below 95%")
+            if 'hr' in df.columns and (df['hr'] > 120).any():
+                alerts.append("High heart rate detected (>120 BPM)")
+            if 'temp' in df.columns and (df['temp'] > 38).any():
+                alerts.append("Fever detected (Temp > 38°C)")
+
+            if alerts:
+                for msg in alerts:
+                    st.warning(msg)
+            else:
+                st.success("All vitals are within normal range.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Distribution charts
-            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
-            st.markdown("### 📊 Distribution of Health Metrics")
-            dist_fig = go.Figure()
-            dist_fig.add_trace(go.Box(y=df['hr'], name="Heart Rate", marker_color="#c0392b"))
-            dist_fig.add_trace(go.Box(y=df['spo2'], name="SpO₂", marker_color="#27ae60"))
-            dist_fig.add_trace(go.Box(y=df['temp'], name="Temperature", marker_color="#d35400"))
-            dist_fig.update_layout(plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec")
-            st.plotly_chart(dist_fig, use_container_width=True)
+            # Summary metrics
+            st.markdown("<div class='section'>", unsafe_allow_html=True)
+            st.markdown("### 📊 Summary Metrics")
+            col1, col2, col3 = st.columns(3)
+            avg_hr = f"{df['hr'].mean():.1f} BPM" if 'hr' in df.columns and df['hr'].notna().any() else "N/A"
+            avg_spo2 = f"{df['spo2'].mean():.1f} %" if 'spo2' in df.columns and df['spo2'].notna().any() else "N/A"
+            avg_temp = f"{df['temp'].mean():.1f} °C" if 'temp' in df.columns and df['temp'].notna().any() else "N/A"
+            col1.metric("Average HR", avg_hr)
+            col2.metric("Average SpO₂", avg_spo2)
+            col3.metric("Average Temp", avg_temp)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Line chart trends
+            st.markdown("<div class='section'>", unsafe_allow_html=True)
+            st.markdown("### 📈 Health Trends Over Time")
+            trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
+            fig = go.Figure()
+            for col, color, label in [
+                ("temp", "#d35400", "Temperature (°C)"),
+                ("hr", "#c0392b", "Heart Rate (BPM)"),
+                ("spo2", "#27ae60", "SpO₂ (%)")
+            ]:
+                if col in trend_df.columns and trend_df[col].notna().any():
+                    fig.add_trace(go.Scatter(
+                        x=trend_df.index, y=trend_df[col],
+                        mode="lines+markers", name=label, line=dict(color=color)
+                    ))
+            fig.update_layout(
+                xaxis_title="Time",
+                yaxis_title="Values",
+                plot_bgcolor="#fdf6ec",
+                paper_bgcolor="#fdf6ec",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Active subjects
-            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
+            st.markdown("<div class='section'>", unsafe_allow_html=True)
             st.markdown("### 👥 Active Subjects")
-            active_subjects = df['id_user'].unique().tolist()
-            st.write(f"Currently receiving data from {len(active_subjects)} subjects: {active_subjects}")
+            active_subjects = df['id_user'].dropna().unique().tolist() if 'id_user' in df.columns else []
+            st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
+            st.write(active_subjects if active_subjects else "No active subjects detected.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Alerts
-            st.markdown("<div class='section-wrapper'>", unsafe_allow_html=True)
-            st.markdown("### ⚠️ Alerts")
-            if (df['spo2'] < 95).any():
-                st.warning("Some subjects have SpO₂ below 95%")
-            if (df['hr'] > 120).any():
-                st.error("High heart rate detected (>120 BPM)")
-            if (df['temp'] > 38).any():
-                st.error("Fever detected (Temp > 38°C)")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # --- Layout 2: Subject/Testor Info ---
+        # --- Layout 2: Subject Info (dynamic by id_user) ---
         with tab2:
             st.subheader("👤 Section 2: Subject Info")
             for sid in subject_ids:
                 st.markdown("<div class='subject-box'>", unsafe_allow_html=True)
                 st.markdown(f"### 🧑 Subject {sid} (ID: {sid})")
 
-                subj_df = df[df['id_user'] == sid].head(100)
+                subj_df = df[df['id_user'] == sid].copy()
                 if subj_df.empty:
                     st.warning(f"No data found for Subject {sid}")
                 else:
@@ -171,7 +200,7 @@ try:
                         ("hr", "#c0392b", "Heart Rate (BPM)"),
                         ("spo2", "#27ae60", "SpO₂ (%)")
                     ]:
-                        if col in subj_df.columns:
+                        if col in subj_df.columns and subj_df[col].notna().any():
                             fig.add_trace(go.Scatter(
                                 x=subj_df.index, y=subj_df[col],
                                 mode="lines+markers", name=label, line=dict(color=color)
@@ -179,7 +208,7 @@ try:
                     fig.update_layout(title=f"Health Trends for Subject {sid}")
                     st.plotly_chart(fig, use_container_width=True)
 
-                    st.dataframe(subj_df, use_container_width=True)
+                    st.dataframe(subj_df.reset_index(), use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 3: Predictions ---
@@ -187,15 +216,29 @@ try:
             st.subheader("🤖 Section 3: ML Predictions by Subject")
             pred_query = f"""
                 SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
-                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
-                (
-                  SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
-                  FROM `{table_id}`
-                  ORDER BY timestamp DESC
-                  LIMIT 100
-                ))
+                FROM ML.PREDICT(
+                    MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
+                    (
+                        SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
+                        FROM `{table_id}`
+                        ORDER BY timestamp DESC
+                        LIMIT 100
+                    )
+                )
             """
             pred_df = client.query(pred_query).to_dataframe()
-except Exception as e:  
-    st.error(f"❌ Error fetching data: {e}")
-    df = pd.DataFrame()
+
+            for sid in subject_ids:
+                st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
+                st.markdown(f"### 🔍 Predictions for Subject {sid}")
+                sub_pred = pred_df[pred_df['id_user'] == sid]
+                if sub_pred.empty:
+                    st.warning(f"No predictions found for Subject {sid}")
+                else:
+                    st.dataframe(sub_pred, use_container_width=True)
+                    cluster_counts = sub_pred.groupby("predicted_cluster").size()
+                    st.bar_chart(cluster_counts)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+except Exception as e:
+    st.error(f"BigQuery error: {e}")
