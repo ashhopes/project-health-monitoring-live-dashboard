@@ -8,12 +8,13 @@ import time
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
 
-# --- Custom Elegant Theme (Maroon + Beige + Gold + Background Image + Card Style) ---
+# --- Custom Elegant Theme ---
 st.markdown(
     """
     <style>
     .stApp {
-        background-image: url("umpsa.png");
+        background-image: url("https://i.imgur.com/yourimage.jpg"); /* tukar dengan URL gambar kamu */
+        background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
@@ -23,7 +24,7 @@ st.markdown(
         position: fixed;
         top: 0; left: 0;
         width: 100%; height: 100%;
-        background-color: rgba(255, 255, 255, 0.7); /* overlay supaya teks jelas */
+        background-color: rgba(255, 255, 255, 0.7);
         z-index: -1;
     }
     .stSidebar { background-color: #f7ede2; }
@@ -167,13 +168,17 @@ try:
         # --- Layout 3: Predictions ---
         with tab3:
             st.subheader("🤖 Section 3: ML Predictions by Subject")
-           pred_query = f"""
-    SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
-    FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
-    (
-      SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
-      FROM `{table_id}`
-      ORDER BY timestamp DESC
-      LIMIT 100
-    ))
-"""
+            pred_query = f"""
+                SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
+                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
+                (
+                  SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
+                  FROM `{table_id}`
+                  ORDER BY timestamp DESC
+                  LIMIT 100
+                ))
+            """
+            pred_df = client.query(pred_query).to_dataframe()
+
+            for subj in subjects:
+               
