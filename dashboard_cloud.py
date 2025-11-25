@@ -108,17 +108,21 @@ try:
 
         # --- Layout 2: Subject/Testor Info ---
         with tab2:
-            st.subheader("👤 Section 2: Subject / Testor Info")
+            st.subheader("👤 Section 2: Subject Info")
             subjects = [
-                {"name": "Ali", "age": 25, "weight": 70, "bmi": 22.5, "id": "Master1"},
-                {"name": "Siti", "age": 30, "weight": 60, "bmi": 21.0, "id": "Master2"},
-                {"name": "Rahman", "age": 28, "weight": 80, "bmi": 24.7, "id": "Master3"},
-                {"name": "Aisyah", "age": 35, "weight": 65, "bmi": 23.5, "id": "Master4"},
+                {"name": "Noryusnita", "age": 48, "gender": "Female", "weight": 67.8, "height": 159, "bmi": 28.5, "id": "U1"},
+                {"name": "Arif", "age": 50, "gender": "Male", "weight": 89, "height": 176, "bmi": 27.0, "id": "U2"},
+                {"name": "Ayreen", "age": 25, "gender": "Female", "weight": 55, "height": 160, "bmi": 21.5, "id": "U3"},
+                {"name": "Kayatri", "age": 29, "gender": "Female", "weight": 70, "height": 170, "bmi": 24.2, "id": "U4"},
+                {"name": "Shahirah", "age": 22, "gender": "Female", "weight": 60, "height": 165, "bmi": 22.0, "id": "U5"},
             ]
             for subj in subjects:
                 st.markdown("<div class='subject-box'>", unsafe_allow_html=True)
                 st.markdown(f"### 🧑 {subj['name']} (ID: {subj['id']})")
-                st.write(f"Age: {subj['age']} | Weight: {subj['weight']}kg | BMI: {subj['bmi']}")
+                st.write(
+                    f"Age: {subj['age']} | Gender: {subj['gender']} | "
+                    f"Weight: {subj['weight']} kg | Height: {subj['height']} cm | BMI: {subj['bmi']}"
+                )
 
                 subj_df = df[df['id_user'] == subj['id']].head(100)
                 subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
