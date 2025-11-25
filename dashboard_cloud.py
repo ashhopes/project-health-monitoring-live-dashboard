@@ -167,9 +167,13 @@ try:
         # --- Layout 3: Predictions ---
         with tab3:
             st.subheader("🤖 Section 3: ML Predictions by Subject")
-            pred_query = f"""
-                SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
-                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
-                (
-                  SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
-                  FROM `{table_id
+           pred_query = f"""
+    SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
+    FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
+    (
+      SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
+      FROM `{table_id}`
+      ORDER BY timestamp DESC
+      LIMIT 100
+    ))
+"""
