@@ -84,7 +84,7 @@ try:
         fig = go.Figure()
         for col, color, label in [
             ("temp", "orange", "Temperature (°C)"),
-            ("humidity", "blue", "Humidity (%)"),
+            ("hum", "blue", "Humidity (%)"),
             ("hr", "red", "Heart Rate (BPM)"),
             ("spo2", "green", "SpO₂ (%)")
         ]:
