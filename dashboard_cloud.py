@@ -5,29 +5,37 @@ from google.oauth2 import service_account
 import plotly.graph_objects as go
 import time
 
-# --- Simple Login System ---
-def check_password():
-    """Returns True if the user entered the correct password."""
-    if "password_correct" not in st.session_state:
-        # First run, show input
-        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        # Wrong password
-        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
-        st.error("❌ Incorrect password, try again.")
-        return False
-    else:
-        # Correct password
-        return True
+# --- Custom CSS for login page ---
+st.markdown("""
 
-def password_entered():
-    """Checks whether a password entered by the user is correct."""
-    if st.session_state["password"] == "moon123":   # 🔑 Set your password here
-        st.session_state["password_correct"] = True
-        del st.session_state["password"]  # remove password from session
-    else:
-        st.session_state["password_correct"] = False
+""", unsafe_allow_html=True)
+
+# --- Login logic ---
+def check_login():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    if not st.session_state.logged_in:
+        with st.container():
+            st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+            st.markdown("<div class='login-title'>🔐 Login Page</div>", unsafe_allow_html=True)
+
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+
+            if st.button("Login"):
+                if username == "admin" and password == "moon123":   # ✅ set your credentials here
+                    st.session_state.logged_in = True
+                    st.success("✅ Login successful!")
+                else:
+                    st.error("❌ Invalid username or password")
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        st.stop()  # Stop app until logged in
+
+# --- Run login check ---
+check_login()
 
 # --- Protect the app ---
 if not check_password():
@@ -40,6 +48,23 @@ st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout=
 st.markdown(
     """
     <style>
+
+     .login-box {
+        background-color: #ffffff;
+        border: 2px solid #4B0082;
+        border-radius: 12px;
+        padding: 30px;
+        width: 400px;
+        margin: auto;
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+    .login-title {
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+        color: #4B0082;
+        margin-bottom: 20px;
+    }
     .stApp {
         background-image: url("http://www.umpsa.edu.my/sites/default/files/slider/ZAF_1540-edit.jpg");
         background-size: cover;
