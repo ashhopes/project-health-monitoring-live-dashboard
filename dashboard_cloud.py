@@ -78,7 +78,6 @@ def check_login():
         st.session_state.logged_in = False
 
     if not st.session_state.logged_in:
-        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
         st.markdown("<div class='login-title'>🔐 Login Page</div>", unsafe_allow_html=True)
 
         username = st.text_input("Username")
