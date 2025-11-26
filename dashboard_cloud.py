@@ -238,41 +238,52 @@ try:
 
        
                 # --- Layout 3: Predictions ---
-        with tab3:
-            st.subheader("🤖 Section 3: ML Predictions by Subject")
+       # --- Tab 3: Clustering Results ---
+with tab3:
+    st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
 
-            # Query ML predictions from BigQuery
-            pred_query = f"""
-                SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
-                FROM ML.PREDICT(
-                    MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.anomaly_model`,
-                    (
-                        SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
-                        FROM `{table_id}`
-                        ORDER BY timestamp DESC
-                        LIMIT 100
-                    )
-                )
-            """
-            pred_df = client.query(pred_query).to_dataframe()
+    # Prediction query using your BigQuery ML model
+    query_cluster = """
+    SELECT *
+    FROM ML.PREDICT(MODEL monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model,
+      (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
+       FROM monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2))
+    """
+    cluster_df = client.query(query_cluster).to_dataframe()
 
-            # Loop through subjects
-            for sid in subject_ids:
-                st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🔍 Predictions for Subject {sid}")
+    # Map cluster IDs to health states
+    labels = {0: "Normal", 1: "Active", 2: "Critical"}
+    cluster_df["health_state"] = cluster_df["cluster"].map(labels)
 
-                sub_pred = pred_df[pred_df['id_user'] == sid]
-                if sub_pred.empty:
-                    st.warning(f"No predictions found for Subject {sid}")
-                else:
-                    # Show prediction table
-                    st.dataframe(sub_pred, use_container_width=True)
+    # Show classified results
+    st.dataframe(cluster_df[["spo2","bpm","hr","cluster","health_state"]])
 
-                    # Show bar chart of cluster counts
-                    cluster_counts = sub_pred.groupby("predicted_cluster").size()
-                    st.bar_chart(cluster_counts)
+    # Distribution chart of health states
+    st.bar_chart(cluster_df["health_state"].value_counts())
 
-                st.markdown("</div>", unsafe_allow_html=True)
+    # --- Cluster averages for interpretation ---
+    avg_query = """
+    SELECT cluster,
+           COUNT(*) AS total_records,
+           AVG(spo2) AS avg_spo2,
+           AVG(bpm) AS avg_bpm,
+           AVG(hr) AS avg_hr,
+           AVG(ax) AS avg_ax,
+           AVG(ay) AS avg_ay,
+           AVG(az) AS avg_az,
+           AVG(gx) AS avg_gx,
+           AVG(gy) AS avg_gy,
+           AVG(gz) AS avg_gz
+    FROM ML.PREDICT(MODEL monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model,
+      (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
+       FROM monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2))
+    GROUP BY cluster
+    ORDER BY cluster
+    """
+    avg_df = client.query(avg_query).to_dataframe()
+    st.subheader("📊 Cluster Averages (Interpretation)")
+    st.dataframe(avg_df)
+    
 except Exception as e:
     st.error(f"❌ Error fetching data: {e}")    
            
