@@ -183,49 +183,52 @@ try:
        
                 # --- Layout 3: Predictions ---
           # --- Tab 3: Clustering Results ---
+        # --- Tab 3: Clustering Results ---
 with tab3:
     st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
 
-    # Prediction query using your BigQuery ML model
-    query_cluster = """
-    SELECT *
-    FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
-      (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
-       FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
-    """
-    cluster_df = client.query(query_cluster).to_dataframe()
+    try:
+        # Prediction query using your BigQuery ML model
+        query_cluster = """
+        SELECT *
+        FROM ML.PREDICT(MODEL monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model,
+          (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
+           FROM monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2))
+        """
+        cluster_df = client.query(query_cluster).to_dataframe()
 
-    # Map cluster IDs to health states
-    labels = {0: "Normal", 1: "Active", 2: "Critical"}
-    cluster_df["health_state"] = cluster_df["cluster"].map(labels)
+        # Map cluster IDs to health states
+        labels = {0: "Normal", 1: "Active", 2: "Critical"}
+        cluster_df["health_state"] = cluster_df["cluster"].map(labels)
 
-    # Show classified results
-    st.dataframe(cluster_df[["spo2","bpm","hr","cluster","health_state"]])
+        # Show classified results
+        st.dataframe(cluster_df[["spo2","bpm","hr","cluster","health_state"]])
 
-    # Distribution chart of health states
-    st.bar_chart(cluster_df["health_state"].value_counts())
+        # Distribution chart of health states
+        st.bar_chart(cluster_df["health_state"].value_counts())
 
-            # Cluster averages for interpretation
-    avg_query = """
-            SELECT cluster,
-                   COUNT(*) AS total_records,
-                   AVG(spo2) AS avg_spo2,
-                   AVG(bpm) AS avg_bpm,
-                   AVG(hr) AS avg_hr,
-                   AVG(ax) AS avg_ax,
-                   AVG(ay) AS avg_ay,
-                   AVG(az) AS avg_az,
-                   AVG(gx) AS avg_gx,
-                   AVG(gy) AS avg_gy,
-                   AVG(gz) AS avg_gz
-            FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
-              (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
-               FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
-            GROUP BY cluster
-            ORDER BY cluster
-            """
-avg_df = client.query(avg_query).to_dataframe()
-st.subheader("📊 Cluster Averages (Interpretation)")
-st.dataframe(avg_df)
-except Exception as e:
-st.error(f"An error occurred: {e}")
+        # Cluster averages for interpretation
+        avg_query = """
+        SELECT cluster,
+               COUNT(*) AS total_records,
+               AVG(spo2) AS avg_spo2,
+               AVG(bpm) AS avg_bpm,
+               AVG(hr) AS avg_hr,
+               AVG(ax) AS avg_ax,
+               AVG(ay) AS avg_ay,
+               AVG(az) AS avg_az,
+               AVG(gx) AS avg_gx,
+               AVG(gy) AS avg_gy,
+               AVG(gz) AS avg_gz
+        FROM ML.PREDICT(MODEL monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model,
+          (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
+           FROM monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2))
+        GROUP BY cluster
+        ORDER BY cluster
+        """
+        avg_df = client.query(avg_query).to_dataframe()
+        st.subheader("📊 Cluster Averages (Interpretation)")
+        st.dataframe(avg_df)
+
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
