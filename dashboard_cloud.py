@@ -109,24 +109,20 @@ try:
             st.subheader("📈 Section 1: System Overview")
 
             # Section 1: Alerts
-       # Section 1: Alerts
-st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
-
-alerts = []
-if 'spo2' in df.columns and (df['spo2'] < 95).any():
-    alerts.append("Some subjects have SpO₂ below 95%")
-if 'hr' in df.columns and (df['hr'] > 120).any():
-    alerts.append("High heart rate detected (>120 BPM)")
-if 'temp' in df.columns and (df['temp'] > 38).any():
-    alerts.append("Fever detected (Temp > 38°C)")
-
-if alerts:
-    for msg in alerts:
-        st.warning(msg)   # kandungan alert ditunjukkan dalam kotak yang sama
-else:
-    st.success("All vitals are within normal range.")
-
-st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
+            alerts = []
+            if 'spo2' in df.columns and (df['spo2'] < 95).any():
+                alerts.append("Some subjects have SpO₂ below 95%")
+            if 'hr' in df.columns and (df['hr'] > 120).any():
+                alerts.append("High heart rate detected (>120 BPM)")
+            if 'temp' in df.columns and (df['temp'] > 38).any():
+                alerts.append("Fever detected (Temp > 38°C)")
+            if alerts:
+                for msg in alerts:
+                    st.warning(msg)
+            else:
+                st.success("All vitals are within normal range.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 2: Summary Metrics
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
