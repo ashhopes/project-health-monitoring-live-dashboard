@@ -44,24 +44,6 @@ st.markdown("""
         border: none;
         padding: 6px 16px;
     }
-            
-            
-    .login-box {
-        background-color: #ffffff;
-        border: 2px solid #4B0082;
-        border-radius: 12px;
-        padding: 30px;
-        width: 400px;
-        margin: auto;
-        box-shadow: 0 0 15px rgba(0,0,0,0.2);
-    }
-    .login-title {
-        text-align: center;
-        font-size: 24px;
-        font-weight: bold;
-        color: #4B0082;
-        margin-bottom: 20px;
-    }
     .stApp {
         background-image: url("http://www.umpsa.edu.my/sites/default/files/slider/ZAF_1540-edit.jpg");
         background-size: cover;
