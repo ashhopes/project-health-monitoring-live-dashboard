@@ -3,7 +3,6 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import plotly.graph_objects as go
-import time
 
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
@@ -53,8 +52,9 @@ refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
 st.sidebar.info("Project by mOONbLOOM26 🌙")
 
+# --- Global auto-refresh (updates entire app) ---
 if refresh_rate > 0:
-    time.sleep(refresh_rate)
+    st.experimental_autorefresh(interval=refresh_rate * 1000, limit=None, key="global_refresh")
 
 # --- BigQuery Authentication ---
 credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
@@ -68,7 +68,7 @@ client = bigquery.Client(
 table_id = "monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2"
 
 # --- Fetch latest data ---
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=refresh_rate or 30)
 def fetch_latest(n=100):
     query = f"""
         SELECT id_user, timestamp, temp, spo2, hr, ax, ay, az, gx, gy, gz
@@ -78,32 +78,38 @@ def fetch_latest(n=100):
     """
     return client.query(query).to_dataframe()
 
+# --- Distinct subjects ---
+@st.cache_data(ttl=refresh_rate or 60)
+def fetch_subject_ids():
+    query = f"""
+        SELECT DISTINCT id_user
+        FROM `{table_id}`
+        WHERE id_user IS NOT NULL
+    """
+    return client.query(query).to_dataframe()["id_user"].tolist()
+
 try:
     df = fetch_latest(n_samples)
+
     if df.empty:
         st.info("No data found yet. Upload from your local app first.")
     else:
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors="coerce")
+        # Clean timestamps
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
-        # --- Get active subject IDs dynamically ---
-        subject_query = f"""
-            SELECT DISTINCT id_user
-            FROM `{table_id}`
-            WHERE id_user IS NOT NULL
-        """
-        subject_ids = client.query(subject_query).to_dataframe()['id_user'].tolist()
+        # Subject IDs
+        subject_ids = fetch_subject_ids()
 
         # --- Tabs ---
         tab1, tab2, tab3 = st.tabs(["📈 Overview", "👤 Subject Info", "🤖 Predictions"])
 
-            # --- Layout 1: System Overview ---
+        # --- Tab 1: Overview ---
         with tab1:
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
             st.markdown("<div class='section' style='border-left:6px solid #3498db;'><h3>👥Section 1: Active Subjects</h3>", unsafe_allow_html=True)
-            active_subjects = df['id_user'].dropna().unique().tolist()
-            active_subjects = df['id_user'].dropna().unique().tolist()
+            active_subjects = df["id_user"].dropna().unique().tolist()
             st.markdown(f"<b>Currently receiving data from <span style='color:#3498db;'>{len(active_subjects)}</span> subjects:</b>", unsafe_allow_html=True)
             st.json({i: sid for i, sid in enumerate(active_subjects)})
             st.markdown("</div>", unsafe_allow_html=True)
@@ -111,15 +117,18 @@ try:
             # Section 2: Alerts
             st.markdown("<div class='section' style='border-left:6px solid #e67e22;'><h3>Section 2:⚠️ Alert Notification</h3>", unsafe_allow_html=True)
             alerts = []
-            if 'spo2' in df.columns and (df['spo2'] < 95).any():
-                low_spo2_users = df[df['spo2'] < 95]['id_user'].unique().tolist()
-                alerts.append(f"SpO₂ below 95%: <b><span style='color:red;'>{', '.join(low_spo2_users)}</span></b>")
-            if 'hr' in df.columns and (df['hr'] > 120).any():
-                high_hr_users = df[df['hr'] > 120]['id_user'].unique().tolist()
-                alerts.append(f"HR > 120 BPM: <b><span style='color:red;'>{', '.join(high_hr_users)}</span></b>")
-            if 'temp' in df.columns and (df['temp'] > 38).any():
-                fever_users = df[df['temp'] > 38]['id_user'].unique().tolist()
-                alerts.append(f"Temp > 38°C: <b><span style='color:red;'>{', '.join(fever_users)}</span></b>")
+            if "spo2" in df.columns and (df["spo2"] < 95).any():
+                low_spo2_users = df[df["spo2"] < 95]["id_user"].dropna().unique().tolist()
+                if low_spo2_users:
+                    alerts.append(f"SpO₂ below 95%: <b><span style='color:red;'>{', '.join(low_spo2_users)}</span></b>")
+            if "hr" in df.columns and (df["hr"] > 120).any():
+                high_hr_users = df[df["hr"] > 120]["id_user"].dropna().unique().tolist()
+                if high_hr_users:
+                    alerts.append(f"HR > 120 BPM: <b><span style='color:red;'>{', '.join(high_hr_users)}</span></b>")
+            if "temp" in df.columns and (df["temp"] > 38).any():
+                fever_users = df[df["temp"] > 38]["id_user"].dropna().unique().tolist()
+                if fever_users:
+                    alerts.append(f"Temp > 38°C: <b><span style='color:red;'>{', '.join(fever_users)}</span></b>")
             if alerts:
                 st.markdown("<ul>" + "".join([f"<li>{msg}</li>" for msg in alerts]) + "</ul>", unsafe_allow_html=True)
             else:
@@ -137,9 +146,9 @@ try:
 
             # Section 4: Health Trend Comparison
             st.markdown("<div class='section' style='border-left:6px solid #9b59b6;'><h3>Section 4: 📈 Health Trend Comparison</h3>", unsafe_allow_html=True)
-            avg_hr = df['hr'].mean()
-            avg_spo2 = df['spo2'].mean()
-            avg_temp = df['temp'].mean()
+            avg_hr = df["hr"].mean()
+            avg_spo2 = df["spo2"].mean()
+            avg_temp = df["temp"].mean()
 
             fig = go.Figure(data=[
                 go.Bar(name="Heart Rate (BPM)", x=["HR"], y=[avg_hr], marker_color="#c0392b"),
@@ -157,15 +166,15 @@ try:
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- Layout 2: Subject Info ---
+        # --- Tab 2: Subject Info ---
         with tab2:
             st.subheader("👤 Section 2: Subject Info")
 
             # Define all subjects (3 COMs)
             all_subjects = ["user_001", "user_002", "user_003"]
-            active_subjects = df['id_user'].dropna().unique().tolist()
+            active_subjects = df["id_user"].dropna().unique().tolist()
 
-            # Manual biodata (replace with DB if needed)
+            # Manual biodata
             biodata = {
                 "user_001": {"Age": 25, "Weight": 60, "Height": 165},
                 "user_002": {"Age": 30, "Weight": 70, "Height": 170},
@@ -178,10 +187,9 @@ try:
                 if sid not in active_subjects:
                     st.markdown("<p style='color:gray;'>❌ Subject not active yet. No data received.</p>", unsafe_allow_html=True)
                 else:
-                    subj_df = df[df['id_user'] == sid].copy()
-                    subj_df = subj_df.sort_values("timestamp", ascending=False)
+                    subj_df = df[df["id_user"] == sid].copy().sort_values("timestamp", ascending=False)
 
-                    # --- Part 1: Biodata & Latest Vitals ---
+                    # Part 1: Biodata & Latest Vitals
                     bio = biodata.get(sid, {})
                     weight = bio.get("Weight", 0)
                     height = bio.get("Height", 0)
@@ -200,7 +208,7 @@ try:
                         </ul>
                     """, unsafe_allow_html=True)
 
-                    # --- Part 2: Graph ---
+                    # Part 2: Graph
                     subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
                     fig = go.Figure()
                     for col, color, label in [
@@ -230,7 +238,7 @@ try:
                     )
                     st.plotly_chart(fig, use_container_width=True)
 
-                    # --- Part 3: Live Data Table ---
+                    # Part 3: Live Data Table
                     st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
 
@@ -240,30 +248,34 @@ try:
         with tab3:
             st.subheader("🧪 Health Signal Clustering (SpO₂, HR + Movement)")
 
-            try:
-                # Prediction query using your BigQuery ML model
+            @st.cache_data(ttl=refresh_rate or 30)
+            def fetch_clusters():
                 query_cluster = """
                 SELECT *
                 FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
                   (SELECT spo2, hr, ax, ay, az, gx, gy, gz
                    FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
                 """
-                cluster_df = client.query(query_cluster).to_dataframe()
+                return client.query(query_cluster).to_dataframe()
 
-                # Map cluster IDs to health states
+            try:
+                cluster_df = fetch_clusters()
+
+                # Determine cluster column name
                 labels = {0: "Normal", 1: "Active", 2: "Critical"}
-                cluster_df["health_state"] = cluster_df["predicted_cluster"].map(labels)
+                cluster_col = "predicted_cluster" if "predicted_cluster" in cluster_df.columns else "cluster"
+                cluster_df["health_state"] = cluster_df[cluster_col].map(labels)
 
-                # Show classified results
-                st.dataframe(cluster_df[["spo2", "hr", "predicted_cluster", "health_state"]], use_container_width=True)
+                # Classified results table
+                st.dataframe(cluster_df[["spo2", "hr", cluster_col, "health_state"]], use_container_width=True)
 
-                # Distribution chart of health states
+                # Health state distribution chart
                 st.subheader("📊 Health State Distribution")
                 st.bar_chart(cluster_df["health_state"].value_counts())
 
                 # Cluster averages for interpretation
-                avg_query = """
-                SELECT predicted_cluster,
+                avg_query = f"""
+                SELECT {cluster_col} AS predicted_cluster,
                        COUNT(*) AS total_records,
                        AVG(spo2) AS avg_spo2,
                        AVG(hr) AS avg_hr,
@@ -282,9 +294,16 @@ try:
                 avg_df = client.query(avg_query).to_dataframe()
                 st.subheader("📊 Cluster Averages (Interpretation)")
                 st.dataframe(avg_df, use_container_width=True)
+
+                # Last updated timestamp
+                st.caption(f"Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
             except Exception as e:
                 st.error(f"Error fetching clustering results: {e}")
 
 except Exception as e:
     st.error(f"Error loading dashboard data: {e}")
     st.write(f"Details: {str(e)}")
+
+st.markdown("---")
+st.markdown("<h3 style='text-align:center;'>Dashboard running live with auto-refresh 🌙</h3>", unsafe_allow_html=True)
