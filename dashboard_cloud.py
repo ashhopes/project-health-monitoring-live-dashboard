@@ -28,19 +28,10 @@ st.markdown(
         z-index: -1;
     }
     .stSidebar { background-color: #f7ede2; }
-    h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
+    h1, h2, h3 { font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
     .section {
         background: #fff; padding: 20px; margin-bottom: 20px;
         border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        display: block;
-    }
-    .subject-box {
-        background-color: #ffffff; border: 2px solid #800000;
-        border-radius: 10px; padding: 15px; margin-bottom: 25px;
-    }
-    .prediction-box {
-        background-color: #ffffff; border: 2px solid #006699;
-        border-radius: 10px; padding: 15px; margin-bottom: 25px;
     }
     </style>
     """,
@@ -48,7 +39,7 @@ st.markdown(
 )
 
 # --- Header ---
-st.markdown("<h1 style='text-align: center;'> Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color:#4B0082;'>🧠 Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center;'>Real-time monitoring of vital signs and motion data using LoRa sensors</p>", unsafe_allow_html=True)
 st.markdown("---")
 
@@ -103,46 +94,45 @@ try:
 
         # --- Layout 1: System Overview ---
         with tab1:
-            st.subheader("📈 Section 1: System Overview")
+            st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
-            st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #3498db;'><h3>👥 Active Subjects</h3>", unsafe_allow_html=True)
             active_subjects = df['id_user'].dropna().unique().tolist()
-            st.markdown(f"<b>Currently receiving data from {len(active_subjects)} subjects:</b>", unsafe_allow_html=True)
+            st.markdown(f"<b>Currently receiving data from <span style='color:#3498db;'>{len(active_subjects)}</span> subjects:</b>", unsafe_allow_html=True)
             st.json({i: sid for i, sid in enumerate(active_subjects)})
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Section 2: Alert Notification
-            st.markdown("<div class='section'><h2>⚠️ Alert Notification</h2>", unsafe_allow_html=True)
+            # Section 2: Alerts
+            st.markdown("<div class='section' style='border-left:6px solid #e67e22;'><h3>⚠️ Alert Notification</h3>", unsafe_allow_html=True)
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
                 low_spo2_users = df[df['spo2'] < 95]['id_user'].unique().tolist()
-                alerts.append(f"SpO₂ below 95%: <b>{', '.join(low_spo2_users)}</b>")
+                alerts.append(f"SpO₂ below 95%: <b><span style='color:red;'>{', '.join(low_spo2_users)}</span></b>")
             if 'hr' in df.columns and (df['hr'] > 120).any():
                 high_hr_users = df[df['hr'] > 120]['id_user'].unique().tolist()
-                alerts.append(f"HR > 120 BPM: <b>{', '.join(high_hr_users)}</b>")
+                alerts.append(f"HR > 120 BPM: <b><span style='color:red;'>{', '.join(high_hr_users)}</span></b>")
             if 'temp' in df.columns and (df['temp'] > 38).any():
                 fever_users = df[df['temp'] > 38]['id_user'].unique().tolist()
-                alerts.append(f"Temp > 38°C: <b>{', '.join(fever_users)}</b>")
+                alerts.append(f"Temp > 38°C: <b><span style='color:red;'>{', '.join(fever_users)}</span></b>")
 
             if alerts:
-                alert_html = "<ul>" + "".join([f"<li>{msg}</li>" for msg in alerts]) + "</ul>"
-                st.markdown(alert_html, unsafe_allow_html=True)
+                st.markdown("<ul>" + "".join([f"<li>{msg}</li>" for msg in alerts]) + "</ul>", unsafe_allow_html=True)
             else:
                 st.markdown("<p style='color:green;'><b>✅ All vitals are within normal range.</b></p>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 3: Summary Metrics
-            st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #2ecc71;'><h3>📊 Summary Metrics</h3>", unsafe_allow_html=True)
             col1, col2, col3, col4 = st.columns(4)
-            col1.markdown(f"**Average HR:** <b>{df['hr'].mean():.1f} BPM</b>", unsafe_allow_html=True)
-            col2.markdown(f"**minSpO₂:** <b>{df['spo2'].min():.1f} %</b>", unsafe_allow_html=True)
-            col3.markdown(f"**Average Temp:** <b>{df['temp'].mean():.1f} °C</b>", unsafe_allow_html=True)
-            col4.markdown(f"**maxTemp:** <b>{df['temp'].max():.1f} °C</b>", unsafe_allow_html=True)
+            col1.markdown(f"**Average HR:** <span style='color:#c0392b;'><b>{df['hr'].mean():.1f} BPM</b></span>", unsafe_allow_html=True)
+            col2.markdown(f"**minSpO₂:** <span style='color:#27ae60;'><b>{df['spo2'].min():.1f} %</b></span>", unsafe_allow_html=True)
+            col3.markdown(f"**Average Temp:** <span style='color:#e67e22;'><b>{df['temp'].mean():.1f} °C</b></span>", unsafe_allow_html=True)
+            col4.markdown(f"**maxTemp:** <span style='color:#e74c3c;'><b>{df['temp'].max():.1f} °C</b></span>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 4: Health Trend Comparison
-            st.markdown("<div class='section'><h2>📈 Health Trend Comparison</h2>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #9b59b6;'><h3>📈 Health Trend Comparison</h3>", unsafe_allow_html=True)
             avg_hr = df['hr'].mean()
             avg_spo2 = df['spo2'].mean()
             avg_temp = df['temp'].mean()
@@ -150,68 +140,18 @@ try:
             fig = go.Figure(data=[
                 go.Bar(name="Heart Rate (BPM)", x=["HR"], y=[avg_hr], marker_color="#c0392b"),
                 go.Bar(name="SpO₂ (%)", x=["SpO₂"], y=[avg_spo2], marker_color="#27ae60"),
-                go.Bar(name="Temperature (°C)", x=["Temp"], y=[avg_temp], marker_color="#d35400")
+                go.Bar(name="Temperature (°C)", x=["Temp"], y=[avg_temp], marker_color="#e67e22")
             ])
             fig.update_layout(
-                title="Average Health Metrics",
+                title="<b>Average Health Metrics</b>",
                 yaxis_title="Value",
                 plot_bgcolor="#fdf6ec",
                 paper_bgcolor="#fdf6ec",
-                height=500
+                height=500,
+                font=dict(size=14)
             )
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
-
-
-            # Section 2: Alert Notification
-            st.markdown("<div class='section'><h2>⚠️ Alert Notification</h2>", unsafe_allow_html=True)
-            alerts = []
-            if 'spo2' in df.columns and (df['spo2'] < 95).any():
-                low_spo2_users = df[df['spo2'] < 95]['id_user'].unique().tolist()
-                alerts.append(f"SpO₂ below 95%: {', '.join(low_spo2_users)}")
-            if 'hr' in df.columns and (df['hr'] > 120).any():
-                high_hr_users = df[df['hr'] > 120]['id_user'].unique().tolist()
-                alerts.append(f"HR > 120 BPM: {', '.join(high_hr_users)}")
-            if 'temp' in df.columns and (df['temp'] > 38).any():
-                fever_users = df[df['temp'] > 38]['id_user'].unique().tolist()
-                alerts.append(f"Temp > 38°C: {', '.join(fever_users)}")
-            if alerts:
-                for msg in alerts:
-                    st.warning(msg)
-            else:
-                st.success("All vitals are within normal range.")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            # Section 3: Summary Metrics
-            st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
-            col2.metric("minSpO₂", f"{df['spo2'].min():.1f} %")
-            col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
-            col4.metric("maxTemp", f"{df['temp'].max():.1f} °C")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            # Section 4: Health Trend Comparison
-            st.markdown("<div class='section'><h2>📈 Health Trend Comparison</h2>", unsafe_allow_html=True)
-            avg_hr = df['hr'].mean()
-            avg_spo2 = df['spo2'].mean()
-            avg_temp = df['temp'].mean()
-
-            fig = go.Figure(data=[
-                go.Bar(name="Heart Rate (BPM)", x=["HR"], y=[avg_hr], marker_color="#c0392b"),
-                go.Bar(name="SpO₂ (%)", x=["SpO₂"], y=[avg_spo2], marker_color="#27ae60"),
-                go.Bar(name="Temperature (°C)", x=["Temp"], y=[avg_temp], marker_color="#d35400")
-            ])
-            fig.update_layout(
-                title="Average Health Metrics",
-                yaxis_title="Value",
-                plot_bgcolor="#fdf6ec",
-                paper_bgcolor="#fdf6ec",
-                height=500
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
 
         # --- Layout 2: Subject Info ---
         with tab2:
