@@ -179,13 +179,12 @@ try:
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
 
                 st.markdown("</div>", unsafe_allow_html=True)
-
-       
+                
                 # --- Layout 3: Predictions ---
           
         # --- Tab 3: Clustering Results ---
         with tab3:
-        st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
+            st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
 
         try:
         # Prediction query using your BigQuery ML model
