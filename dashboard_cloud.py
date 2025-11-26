@@ -186,7 +186,7 @@ try:
         with tab3:
             st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
 
-        try:
+    try:
         # Prediction query using your BigQuery ML model
         query_cluster = """
         SELECT *
