@@ -29,27 +29,18 @@ st.markdown(
     }
     .stSidebar { background-color: #f7ede2; }
     h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
-
-    .tab1, .tab2, .tab3 {
-    fontz-size: 20px;
-    color:yellow;
-    font-family: 'Helvetica Neue', sans-serif;      
-    font-weight: 500;
-    }
     .section {
-        background: #fff;
-        padding: 20px;
-        margin-bottom: 20px;
-        border-radius: 8px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        background: #fff; padding: 20px; margin-bottom: 20px;
+        border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
         display: block;
     }
     .subject-box {
-        background-color: #ffffff;
-        border: 2px solid #800000;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 25px;
+        background-color: #ffffff; border: 2px solid #800000;
+        border-radius: 10px; padding: 15px; margin-bottom: 25px;
+    }
+    .prediction-box {
+        background-color: #ffffff; border: 2px solid #006699;
+        border-radius: 10px; padding: 15px; margin-bottom: 25px;
     }
     </style>
     """,
@@ -114,15 +105,25 @@ try:
         with tab1:
             st.subheader("📈 Section 1: System Overview")
 
-            # Alerts
-            st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
+            # Section 1: Active Subjects
+            st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
+            active_subjects = df['id_user'].dropna().unique().tolist()
+            st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
+            st.json({i: sid for i, sid in enumerate(active_subjects)})
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Section 2: Alert Notification
+            st.markdown("<div class='section'><h2>⚠️ Alert Notification</h2>", unsafe_allow_html=True)
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
-                alerts.append("Some subjects have SpO₂ below 95%")
+                low_spo2_users = df[df['spo2'] < 95]['id_user'].unique().tolist()
+                alerts.append(f"SpO₂ below 95%: {', '.join(low_spo2_users)}")
             if 'hr' in df.columns and (df['hr'] > 120).any():
-                alerts.append("High heart rate detected (>120 BPM)")
+                high_hr_users = df[df['hr'] > 120]['id_user'].unique().tolist()
+                alerts.append(f"HR > 120 BPM: {', '.join(high_hr_users)}")
             if 'temp' in df.columns and (df['temp'] > 38).any():
-                alerts.append("Fever detected (Temp > 38°C)")
+                fever_users = df[df['temp'] > 38]['id_user'].unique().tolist()
+                alerts.append(f"Temp > 38°C: {', '.join(fever_users)}")
             if alerts:
                 for msg in alerts:
                     st.warning(msg)
@@ -130,42 +131,36 @@ try:
                 st.success("All vitals are within normal range.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Summary Metrics
+            # Section 3: Summary Metrics
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
             col2.metric("minSpO₂", f"{df['spo2'].min():.1f} %")
             col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
+            col4.metric("maxTemp", f"{df['temp'].max():.1f} °C")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Health Trends Chart
-            st.markdown("<div class='section'><h2>📈 Health Trends Over Time</h2>", unsafe_allow_html=True)
-            trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
-            fig = go.Figure()
-            for col, color, label in [
-                ("hr", "#c0392b", "Heart Rate (BPM)"),
-                ("spo2", "#27ae60", "SpO₂ (%)")
-            ]:
-                if col in trend_df.columns and trend_df[col].notna().any():
-                    fig.add_trace(go.Scatter(
-                        x=trend_df.index, y=trend_df[col],
-                        mode="lines+markers", name=label,
-                        line=dict(color=color, dash="dot")
-                    ))
+            # Section 4: Health Trend Comparison
+            st.markdown("<div class='section'><h2>📈 Health Trend Comparison</h2>", unsafe_allow_html=True)
+            avg_hr = df['hr'].mean()
+            avg_spo2 = df['spo2'].mean()
+            avg_temp = df['temp'].mean()
+
+            fig = go.Figure(data=[
+                go.Bar(name="Heart Rate (BPM)", x=["HR"], y=[avg_hr], marker_color="#c0392b"),
+                go.Bar(name="SpO₂ (%)", x=["SpO₂"], y=[avg_spo2], marker_color="#27ae60"),
+                go.Bar(name="Temperature (°C)", x=["Temp"], y=[avg_temp], marker_color="#d35400")
+            ])
             fig.update_layout(
-                xaxis_title="Time", yaxis_title="Values",
-                plot_bgcolor="#fdf6ec", paper_bgcolor="#fdf6ec",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                title="Average Health Metrics",
+                yaxis_title="Value",
+                plot_bgcolor="#fdf6ec",
+                paper_bgcolor="#fdf6ec",
+                height=500
             )
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Active Subjects
-            st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
-            active_subjects = df['id_user'].dropna().unique().tolist()
-            st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
-            st.json({i: sid for i, sid in enumerate(active_subjects)})
-            st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject Info ---
         with tab2:
