@@ -114,21 +114,41 @@ try:
         with tab1:
             st.subheader("📈 Section 1: System Overview")
 
-            # Alerts
-        <div class="section">
-        <h2>Alerts</h2>
-        if 'spo2' in df.columns and (df['spo2'] < 95).any():
-            alerts.append("Some subjects have SpO₂ below 95%")
-            if 'hr' in df.columns and (df['hr'] > 120).any():
-                alerts.append("High heart rate detected (>120 BPM)")
-            if 'temp' in df.columns and (df['temp'] > 38).any():
-                alerts.append("Fever detected (Temp > 38°C)")
-            if alerts:
-                for msg in alerts:
-                    st.warning(msg)
-            else:
-                st.success("All vitals are within normal range.")                                           
-        </div>
+       # Alerts Section
+st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
+
+alerts = []
+
+# SpO₂ check
+if 'spo2' in df.columns and (df['spo2'] < 95).any():
+    alerts.append("Some subjects have SpO₂ below 95%")
+
+# Heart Rate check
+if 'hr' in df.columns and (df['hr'] > 120).any():
+    alerts.append("High heart rate detected (>120 BPM)")
+
+# Temperature check
+if 'temp' in df.columns and (df['temp'] > 38).any():
+    alerts.append("Fever detected (Temp > 38°C)")
+
+# LN / SO₂ check (ikut schema kamu)
+if 'so2' in df.columns and (df['so2'] > 0.1).any():
+    alerts.append("SO₂ levels above threshold")
+if 'ln' in df.columns and (df['ln'] > 1.0).any():
+    alerts.append("LN signal spike detected")
+
+# Movement check
+if {'ax','ay','az'}.issubset(df.columns) and (df[['ax','ay','az']].abs().max().max() > 5):
+    alerts.append("High movement detected")
+
+# Display alerts
+if alerts:
+    for msg in alerts:
+        st.warning(msg)
+else:
+    st.success("All vitals and sensor readings are within normal range.")
+
+st.markdown("</div>", unsafe_allow_html=True)
 
             # Summary Metrics
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
