@@ -127,8 +127,7 @@ try:
                 for msg in alerts:
                     st.warning(msg)
             else:
-                st.success("All vitals are within normal range.")
-            st.markdown("</div>", unsafe_allow_html=True)                                            
+                st.success("All vitals are within normal range.")                                           
         </div>
 
             # Summary Metrics
