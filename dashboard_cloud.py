@@ -73,7 +73,6 @@ def fetch_latest(n=100):
         LIMIT {n}
     """
     return client.query(query).to_dataframe()
-
 try:
     df = fetch_latest(n_samples)
     if df.empty:
@@ -97,14 +96,15 @@ try:
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
-            st.markdown("<div class='section' style='border-left:6px solid #3498db;'><h3>👥 Active Subjects</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #3498db;'><h3>👥Section 1: Active Subjects</h3>", unsafe_allow_html=True)
+            active_subjects = df['id_user'].dropna().unique().tolist()
             active_subjects = df['id_user'].dropna().unique().tolist()
             st.markdown(f"<b>Currently receiving data from <span style='color:#3498db;'>{len(active_subjects)}</span> subjects:</b>", unsafe_allow_html=True)
             st.json({i: sid for i, sid in enumerate(active_subjects)})
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 2: Alerts
-            st.markdown("<div class='section' style='border-left:6px solid #e67e22;'><h3>⚠️ Alert Notification</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #e67e22;'><h3>Section 2:⚠️ Alert Notification</h3>", unsafe_allow_html=True)
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
                 low_spo2_users = df[df['spo2'] < 95]['id_user'].unique().tolist()
@@ -115,7 +115,6 @@ try:
             if 'temp' in df.columns and (df['temp'] > 38).any():
                 fever_users = df[df['temp'] > 38]['id_user'].unique().tolist()
                 alerts.append(f"Temp > 38°C: <b><span style='color:red;'>{', '.join(fever_users)}</span></b>")
-
             if alerts:
                 st.markdown("<ul>" + "".join([f"<li>{msg}</li>" for msg in alerts]) + "</ul>", unsafe_allow_html=True)
             else:
@@ -123,7 +122,7 @@ try:
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 3: Summary Metrics
-            st.markdown("<div class='section' style='border-left:6px solid #2ecc71;'><h3>📊 Summary Metrics</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #2ecc71;'><h3>Section 3: 📊 Summary Metrics</h3>", unsafe_allow_html=True)
             col1, col2, col3, col4 = st.columns(4)
             col1.markdown(f"**Average HR:** <span style='color:#c0392b;'><b>{df['hr'].mean():.1f} BPM</b></span>", unsafe_allow_html=True)
             col2.markdown(f"**minSpO₂:** <span style='color:#27ae60;'><b>{df['spo2'].min():.1f} %</b></span>", unsafe_allow_html=True)
@@ -132,7 +131,7 @@ try:
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 4: Health Trend Comparison
-            st.markdown("<div class='section' style='border-left:6px solid #9b59b6;'><h3>📈 Health Trend Comparison</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='section' style='border-left:6px solid #9b59b6;'><h3>Section 4: 📈 Health Trend Comparison</h3>", unsafe_allow_html=True)
             avg_hr = df['hr'].mean()
             avg_spo2 = df['spo2'].mean()
             avg_temp = df['temp'].mean()
