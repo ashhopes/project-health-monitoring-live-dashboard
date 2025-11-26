@@ -5,37 +5,29 @@ from google.oauth2 import service_account
 import plotly.graph_objects as go
 import time
 
-# --- Custom CSS for login page ---
-st.markdown("""
+# --- Simple Login System ---
+def check_password():
+    """Returns True if the user entered the correct password."""
+    if "password_correct" not in st.session_state:
+        # First run, show input
+        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        # Wrong password
+        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
+        st.error("❌ Incorrect password, try again.")
+        return False
+    else:
+        # Correct password
+        return True
 
-""", unsafe_allow_html=True)
-
-# --- Login logic ---
-def check_login():
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-
-    if not st.session_state.logged_in:
-        with st.container():
-            st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-            st.markdown("<div class='login-title'>🔐 Login Page</div>", unsafe_allow_html=True)
-
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-
-            if st.button("Login"):
-                if username == "admin" and password == "moon123":   # ✅ set your credentials here
-                    st.session_state.logged_in = True
-                    st.success("✅ Login successful!")
-                else:
-                    st.error("❌ Invalid username or password")
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        st.stop()  # Stop app until logged in
-
-# --- Run login check ---
-check_login()
+def password_entered():
+    """Checks whether a password entered by the user is correct."""
+    if st.session_state["password"] == "moon123":   # 🔑 Set your password here
+        st.session_state["password_correct"] = True
+        del st.session_state["password"]  # remove password from session
+    else:
+        st.session_state["password_correct"] = False
 
 # --- Protect the app ---
 if not check_password():
@@ -49,7 +41,7 @@ st.markdown(
     """
     <style>
 
-     .login-box {
+    .login-box {
         background-color: #ffffff;
         border: 2px solid #4B0082;
         border-radius: 12px;
@@ -104,7 +96,7 @@ st.markdown("---")
 st.sidebar.header("⚙️ Controls")
 refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
-st.sidebar.info("Project by nuralysa@TG22051")
+st.sidebar.info("Project by mOONbLOOM26 🌙")
 
 if refresh_rate > 0:
     time.sleep(refresh_rate)
