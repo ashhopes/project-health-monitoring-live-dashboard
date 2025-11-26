@@ -115,11 +115,17 @@ try:
             st.subheader("📈 Section 1: System Overview")
 
             # Section 1: Active Subjects
-            st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
+           st.markdown("<div class='section'><h2>Section1:Active Subjects👥</h2>", unsafe_allow_html=True)
+         st.markdown("</div>", unsafe_allow_html=True)
             active_subjects = df['id_user'].dropna().unique().tolist()
             st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
             st.json({i: sid for i, sid in enumerate(active_subjects)})
+            
+
+            
             st.markdown("</div>", unsafe_allow_html=True)
+
+
 
             # Section 2: Alert Notification
             st.markdown("<div class='section'><h2>⚠️ Alert Notification</h2>", unsafe_allow_html=True)
