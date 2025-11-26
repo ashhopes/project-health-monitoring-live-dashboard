@@ -30,6 +30,12 @@ st.markdown(
     .stSidebar { background-color: #f7ede2; }
     h1, h2, h3 { color: #800000; font-family: 'Helvetica Neue', sans-serif; font-weight: 600; }
 
+    .tab1, .tab2, .tab3 {
+    fontz-size: 16px;
+    color:
+    font-family: 'Helvetica Neue', sans-serif;      
+    font-weight: 500;
+    }
     .section {
         background: #fff;
         padding: 20px;
@@ -109,10 +115,10 @@ try:
             st.subheader("📈 Section 1: System Overview")
 
             # Alerts
-            st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
-            alerts = []
-            if 'spo2' in df.columns and (df['spo2'] < 95).any():
-                alerts.append("Some subjects have SpO₂ below 95%")
+        <div class="Alerts">
+        <h2>⚠️ Alerts</h2>
+        if 'spo2' in df.columns and (df['spo2'] < 95).any():
+            alerts.append("Some subjects have SpO₂ below 95%")
             if 'hr' in df.columns and (df['hr'] > 120).any():
                 alerts.append("High heart rate detected (>120 BPM)")
             if 'temp' in df.columns and (df['temp'] > 38).any():
@@ -122,7 +128,8 @@ try:
                     st.warning(msg)
             else:
                 st.success("All vitals are within normal range.")
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)                                            
+        </div>
 
             # Summary Metrics
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
