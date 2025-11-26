@@ -42,13 +42,22 @@ st.markdown(
         background-color: #ffffff; border: 2px solid #006699;
         border-radius: 10px; padding: 15px; margin-bottom: 25px;
     }
+    .section {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    display: block;
+    }
+    
     </style>
     """,
     unsafe_allow_html=True
 )
 
 # --- Header ---
-st.markdown("<h1 style='text-align: center;'>🧠 Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'> Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center;'>Real-time monitoring of vital signs and motion data using LoRa sensors</p>", unsafe_allow_html=True)
 st.markdown("---")
 
