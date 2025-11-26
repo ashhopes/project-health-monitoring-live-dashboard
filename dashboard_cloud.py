@@ -110,8 +110,8 @@ try:
 
             # Section 1: Alerts
         <div class='section'>
-            st.markdown(<h2>⚠️ Alerts</h2>, unsafe_allow_html=True)
-            alerts = []
+        st.markdown("<h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
+        alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
                 alerts.append("Some subjects have SpO₂ below 95%")
             if 'hr' in df.columns and (df['hr'] > 120).any():
