@@ -5,33 +5,31 @@ from google.oauth2 import service_account
 import plotly.graph_objects as go
 import time
 
-# --- Simple Login System ---
-def check_password():
-    """Returns True if the user entered the correct password."""
-    if "password_correct" not in st.session_state:
-        # First run, show input
-        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        # Wrong password
-        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
-        st.error("❌ Incorrect password, try again.")
-        return False
-    else:
-        # Correct password
-        return True
+# --- Login logic ---
+def check_login():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
 
-def password_entered():
-    """Checks whether a password entered by the user is correct."""
-    if st.session_state["password"] == "moon123":   # 🔑 Set your password here
-        st.session_state["password_correct"] = True
-        del st.session_state["password"]  # remove password from session
-    else:
-        st.session_state["password_correct"] = False
+    if not st.session_state.logged_in:
+        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+        st.markdown("<div class='login-title'>🔐 Login Page</div>", unsafe_allow_html=True)
 
-# --- Protect the app ---
-if not check_password():
-    st.stop()  # 👈 stops the app until correct password is entered
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if username == "admin" and password == "moon123":   # ✅ set your credentials here
+                st.session_state.logged_in = True
+                st.success("✅ Login successful!")
+            else:
+                st.error("❌ Invalid username or password")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.stop()
+
+# --- Run login check ---
+check_login()
+
 
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
