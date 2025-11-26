@@ -1,4 +1,4 @@
-*tab 1& tab 2 pass* import streamlit as st
+import streamlit as st
 import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
