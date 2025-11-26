@@ -115,7 +115,7 @@ try:
             st.subheader("📈 Section 1: System Overview")
 
             # Alerts
-        <div class="Alerts">
+        <div class="section">
         <h2>Alerts</h2>
         if 'spo2' in df.columns and (df['spo2'] < 95).any():
             alerts.append("Some subjects have SpO₂ below 95%")
