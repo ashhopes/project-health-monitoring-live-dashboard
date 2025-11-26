@@ -18,7 +18,6 @@ st.markdown(
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
-        background-trasparency: 60%;
     }
     .stApp::before {
         content: "";
@@ -43,6 +42,14 @@ st.markdown(
         background-color: #ffffff; border: 2px solid #006699;
         border-radius: 10px; padding: 15px; margin-bottom: 25px;
     }
+    .section {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    display: block;
+    
     </style>
     """,
     unsafe_allow_html=True
@@ -104,17 +111,16 @@ try:
 
         # --- Layout 1: System Overview ---
         with tab1:
+            st.subheader("📈 Section 1: System Overview")
 
             # Section 1: Active Subjects
-            st.subheader("📈 Section 1: Active Subject")
             st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
             active_subjects = df['id_user'].dropna().unique().tolist()
             st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
             st.json({i: sid for i, sid in enumerate(active_subjects)})
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Section 2: Alert Notification (inline HTML list)
-            st.subheader("📈 Section 2:Alert Notification Subject Active")
+            # Section 2: Alert Notification
             st.markdown("<div class='section'><h2>⚠️ Alert Notification</h2>", unsafe_allow_html=True)
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
@@ -126,16 +132,14 @@ try:
             if 'temp' in df.columns and (df['temp'] > 38).any():
                 fever_users = df[df['temp'] > 38]['id_user'].unique().tolist()
                 alerts.append(f"Temp > 38°C: {', '.join(fever_users)}")
-
             if alerts:
-                alert_html = "<ul>" + "".join([f"<li><span style='color:red;'>{msg}</span></li>" for msg in alerts]) + "</ul>"
-                st.markdown(alert_html, unsafe_allow_html=True)
+                for msg in alerts:
+                    st.warning(msg)
             else:
-                st.markdown("<p style='color:green;'>✅ All vitals are within normal range.</p>", unsafe_allow_html=True)
+                st.success("All vitals are within normal range.")
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 3: Summary Metrics
-            st.subheader("📈 Section 3:Summary Metrics")
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
@@ -145,7 +149,6 @@ try:
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 4: Health Trend Comparison
-            st.subheader("📈 Section 4:Health Trend Comparison")
             st.markdown("<div class='section'><h2>📈 Health Trend Comparison</h2>", unsafe_allow_html=True)
             avg_hr = df['hr'].mean()
             avg_spo2 = df['spo2'].mean()
@@ -165,27 +168,6 @@ try:
             )
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
-
-        # --- Layout 2: Subject Info ---
-        with tab2:
-            st.subheader("👤 Section 2: Subject Info")
-            for sid in subject_ids:
-                st.markdown("<div class='subject-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🧑 Subject {sid} (ID: {sid})")
-                subj_df = df[df['id_user'] == sid].copy()
-                if subj_df.empty:
-                    st.warning(f"No data found for Subject {sid}")
-                else:
-                    subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
-                    fig = go.Figure()
-                    for col, color, label in [
-                        ("temp", "#d35400", "Temperature (°C)"),
-                        ("hr", "#c0392b", "Heart Rate (BPM)"),
-                        ("spo2", "#27ae60", "SpO₂ (%)")
-                    ]:
-                        if col in subj_df.columns and subj_df[col].notna().any():
-                            fig.add_trace(go.Scatter(
-                                x=subj_df.index, y=subj_df
 
 
         # --- Layout 2: Subject Info ---
