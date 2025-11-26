@@ -116,7 +116,7 @@ try:
 
             # Alerts
         <div class="Alerts">
-        <h2>⚠️ Alerts</h2>
+        <h2>Alerts</h2>
         if 'spo2' in df.columns and (df['spo2'] < 95).any():
             alerts.append("Some subjects have SpO₂ below 95%")
             if 'hr' in df.columns and (df['hr'] > 120).any():
