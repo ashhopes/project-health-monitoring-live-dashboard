@@ -3,6 +3,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import plotly.graph_objects as go
+import time
 
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
@@ -52,12 +53,8 @@ refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
 st.sidebar.info("Project by mOONbLOOM26 🌙")
 
-# --- Auto-refresh setup ---
 if refresh_rate > 0:
-    count = st.experimental_get_query_params().get("count", [0])
-    count = int(count[0])
-    st.experimental_set_query_params(count=count + 1)
-    st.experimental_rerun()
+    time.sleep(refresh_rate)
 
 # --- BigQuery Authentication ---
 credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
@@ -102,17 +99,17 @@ try:
         # --- Layout 1: Overview ---
         with tab1:
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
-            # Placeholder for overview content
+            # (Overview sections here – same as your previous design)
 
         # --- Layout 2: Subject Info ---
         with tab2:
             st.subheader("👤 Section 2: Subject Info")
 
-            # Define all subjects
+            # Define all subjects (3 COMs)
             all_subjects = ["user_001", "user_002", "user_003"]
             active_subjects = df['id_user'].dropna().unique().tolist()
 
-            # Manual biodata
+            # Manual biodata (replace with DB if needed)
             biodata = {
                 "user_001": {"Age": 25, "Weight": 60, "Height": 165},
                 "user_002": {"Age": 30, "Weight": 70, "Height": 170},
@@ -128,7 +125,7 @@ try:
                     subj_df = df[df['id_user'] == sid].copy()
                     subj_df = subj_df.sort_values("timestamp", ascending=False)
 
-                    # Biodata & Latest Vitals
+                    # --- Part 1: Biodata & Latest Vitals ---
                     bio = biodata.get(sid, {})
                     weight = bio.get("Weight", 0)
                     height = bio.get("Height", 0)
@@ -147,7 +144,7 @@ try:
                         </ul>
                     """, unsafe_allow_html=True)
 
-                    # Graph
+                    # --- Part 2: Graph ---
                     subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
                     fig = go.Figure()
                     for col, color, label in [
@@ -177,37 +174,39 @@ try:
                     )
                     st.plotly_chart(fig, use_container_width=True)
 
-                    # Live Data Table
+                    # --- Part 3: Live Data Table ---
                     st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
 
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- Layout 3: Predictions ---
-        with tab3:
-            st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
+       
+                # --- Layout 3: Predictions ---
+          # --- Tab 3: Clustering Results ---
+with tab3:
+    st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
 
-            # Prediction query using your BigQuery ML model
-            query_cluster = """
-            SELECT *
-            FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
-              (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
-               FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
-            """
-            cluster_df = client.query(query_cluster).to_dataframe()
+    # Prediction query using your BigQuery ML model
+    query_cluster = """
+    SELECT *
+    FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
+      (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
+       FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
+    """
+    cluster_df = client.query(query_cluster).to_dataframe()
 
-            # Map cluster IDs to health states
-            labels = {0: "Normal", 1: "Active", 2: "Critical"}
-            cluster_df["health_state"] = cluster_df["cluster"].map(labels)
+    # Map cluster IDs to health states
+    labels = {0: "Normal", 1: "Active", 2: "Critical"}
+    cluster_df["health_state"] = cluster_df["cluster"].map(labels)
 
-            # Show classified results
-            st.dataframe(cluster_df[["spo2","bpm","hr","cluster","health_state"]])
+    # Show classified results
+    st.dataframe(cluster_df[["spo2","bpm","hr","cluster","health_state"]])
 
-            # Distribution chart of health states
-            st.bar_chart(cluster_df["health_state"].value_counts())
+    # Distribution chart of health states
+    st.bar_chart(cluster_df["health_state"].value_counts())
 
             # Cluster averages for interpretation
-            avg_query = """
+    avg_query = """
             SELECT cluster,
                    COUNT(*) AS total_records,
                    AVG(spo2) AS avg_spo2,
@@ -225,9 +224,8 @@ try:
             GROUP BY cluster
             ORDER BY cluster
             """
-            avg_df = client.query(avg_query).to_dataframe()
-            st.subheader("📊 Cluster Averages (Interpretation)")
-            st.dataframe(avg_df)
-
-finally:
-    client.close()
+avg_df = client.query(avg_query).to_dataframe()
+st.subheader("📊 Cluster Averages (Interpretation)")
+st.dataframe(avg_df)
+except Exception as e:
+st.error(f"An error occurred: {e}")
