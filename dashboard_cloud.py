@@ -5,6 +5,34 @@ from google.oauth2 import service_account
 import plotly.graph_objects as go
 import time
 
+# --- Simple Login System ---
+def check_password():
+    """Returns True if the user entered the correct password."""
+    if "password_correct" not in st.session_state:
+        # First run, show input
+        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        # Wrong password
+        st.text_input("Enter password:", type="password", on_change=password_entered, key="password")
+        st.error("❌ Incorrect password, try again.")
+        return False
+    else:
+        # Correct password
+        return True
+
+def password_entered():
+    """Checks whether a password entered by the user is correct."""
+    if st.session_state["password"] == "moon123":   # 🔑 Set your password here
+        st.session_state["password_correct"] = True
+        del st.session_state["password"]  # remove password from session
+    else:
+        st.session_state["password_correct"] = False
+
+# --- Protect the app ---
+if not check_password():
+    st.stop()  # 👈 stops the app until correct password is entered
+
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
 
@@ -51,7 +79,7 @@ st.markdown("---")
 st.sidebar.header("⚙️ Controls")
 refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
-st.sidebar.info("Project by mOONbLOOM26 🌙")
+st.sidebar.info("Project by nuralysa@TG22051")
 
 if refresh_rate > 0:
     time.sleep(refresh_rate)
