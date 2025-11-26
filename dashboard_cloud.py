@@ -108,8 +108,9 @@ try:
         with tab1:
             st.subheader("📈 Section 1: System Overview")
 
-            # Alerts
-            st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
+            # Section 1: Alerts
+        <div class='section'>
+            st.markdown(<h2>⚠️ Alerts</h2>, unsafe_allow_html=True)
             alerts = []
             if 'spo2' in df.columns and (df['spo2'] < 95).any():
                 alerts.append("Some subjects have SpO₂ below 95%")
@@ -122,9 +123,10 @@ try:
                     st.warning(msg)
             else:
                 st.success("All vitals are within normal range.")
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(unsafe_allow_html=True)
+        </div>
 
-            # Summary Metrics
+            # Section 2: Summary Metrics
             st.markdown("<div class='section'><h2>📊 Summary Metrics</h2>", unsafe_allow_html=True)
             col1, col2, col3 = st.columns(3)
             col1.metric("Average HR", f"{df['hr'].mean():.1f} BPM")
@@ -132,7 +134,7 @@ try:
             col3.metric("Average Temp", f"{df['temp'].mean():.1f} °C")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Health Trends Chart
+            # Section 3: Health Trends Chart
             st.markdown("<div class='section'><h2>📈 Health Trends Over Time</h2>", unsafe_allow_html=True)
             trend_df = df.sort_values("timestamp", ascending=True).set_index("timestamp")
             fig = go.Figure()
@@ -154,11 +156,25 @@ try:
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Active Subjects
+            # Section 4: Active Subjects
             st.markdown("<div class='section'><h2>👥 Active Subjects</h2>", unsafe_allow_html=True)
             active_subjects = df['id_user'].dropna().unique().tolist()
             st.write(f"Currently receiving data from {len(active_subjects)} subjects:")
             st.json({i: sid for i, sid in enumerate(active_subjects)})
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Section 5: Bar Summary of Subjects
+            st.markdown("<div class='section'><h2>📊 Subject Summary (HR, SpO₂, Temp)</h2>", unsafe_allow_html=True)
+            summary_df = df.groupby("id_user").agg({
+                "hr":"mean","spo2":"mean","temp":"mean"
+            }).reset_index()
+            fig_summary = go.Figure(data=[
+                go.Bar(name="HR", x=summary_df['id_user'], y=summary_df['hr']),
+                go.Bar(name="SpO₂", x=summary_df['id_user'], y=summary_df['spo2']),
+                go.Bar(name="Temp", x=summary_df['id_user'], y=summary_df['temp'])
+            ])
+            fig_summary.update_layout(barmode='group', plot_bgcolor="#ffffff", paper_bgcolor="#ffffff")
+            st.plotly_chart(fig_summary, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject Info ---
@@ -188,12 +204,10 @@ try:
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-
-                # --- Layout 3: Predictions ---
+        # --- Layout 3: Predictions ---
         with tab3:
             st.subheader("🤖 Section 3: ML Predictions by Subject")
 
-            # Query ML predictions from BigQuery
             pred_query = f"""
                 SELECT timestamp, id_user, temp, spo2, hr, ax, ay, az, gx, gy, gz, predicted_cluster
                 FROM ML.PREDICT(
@@ -202,28 +216,57 @@ try:
                         SELECT temp, spo2, hr, ax, ay, az, gx, gy, gz, timestamp, id_user
                         FROM `{table_id}`
                         ORDER BY timestamp DESC
-                        LIMIT 100
+                        LIMIT 300
                     )
                 )
             """
             pred_df = client.query(pred_query).to_dataframe()
+            pred_df['timestamp'] = pd.to_datetime(pred_df['timestamp'], errors="coerce")
+            pred_df = pred_df.sort_values("timestamp", ascending=False)
 
-            # Loop through subjects
+            # Overall summary box
+            st.markdown("<div class='section'><h2>🧩 Overall Prediction Summary</h2>", unsafe_allow_html=True)
+            if pred_df.empty:
+                st.warning("No predictions available yet.")
+            else:
+                overall_counts = pred_df.groupby("predicted_cluster").size().rename("count").reset_index()
+                fig_counts = go.Figure(data=[
+                    go.Bar(x=overall_counts['predicted_cluster'], y=overall_counts['count'], marker_color="#bfa76f")
+                ])
+                fig_counts.update_layout(
+                    xaxis_title="Predicted cluster",
+                    yaxis_title="Count",
+                    plot_bgcolor="#ffffff",
+                    paper_bgcolor="#ffffff"
+                )
+                st.plotly_chart(fig_counts, use_container_width=True)
+                st.dataframe(pred_df[['timestamp','id_user','hr','spo2','temp','predicted_cluster']], use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Per subject predictions
             for sid in subject_ids:
-                st.markdown("<div class='prediction-box'>", unsafe_allow_html=True)
-                st.markdown(f"### 🔍 Predictions for Subject {sid}")
-
-                sub_pred = pred_df[pred_df['id_user'] == sid]
+                st.markdown(f"<div class='section'><h2>🔍 Predictions for Subject {sid}</h2>", unsafe_allow_html=True)
+                sub_pred = pred_df[pred_df['id_user'] == sid].copy()
                 if sub_pred.empty:
                     st.warning(f"No predictions found for Subject {sid}")
                 else:
-                    # Show prediction table
-                    st.dataframe(sub_pred, use_container_width=True)
-
-                    # Show bar chart of cluster counts
-                    cluster_counts = sub_pred.groupby("predicted_cluster").size()
-                    st.bar_chart(cluster_counts)
-
+                    sub_pred = sub_pred.sort_values("timestamp", ascending=False)
+                    st.dataframe(
+                        sub_pred[['timestamp','hr','spo2','temp','ax','ay','az','gx','gy','gz','predicted_cluster']],
+                        use_container_width=True
+                    )
+                    cluster_counts = sub_pred.groupby("predicted_cluster").size().rename("count").reset_index()
+                    fig_user_counts = go.Figure(data=[
+                        go.Bar(x=cluster_counts['predicted_cluster'], y=cluster_counts['count'], marker_color="#800000")
+                    ])
+                    fig_user_counts.update_layout(
+                        xaxis_title="Predicted cluster",
+                        yaxis_title="Count",
+                        plot_bgcolor="#ffffff",
+                        paper_bgcolor="#ffffff",
+                        title=f"Cluster distribution for {sid}"
+                    )
+                    st.plotly_chart(fig_user_counts, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 except Exception as e:
     st.error(f"❌ Error fetching data: {e}")    
