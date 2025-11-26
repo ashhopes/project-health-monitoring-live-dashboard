@@ -18,6 +18,7 @@ st.markdown(
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
+        trasparency: 60%;
     }
     .stApp::before {
         content: "";
