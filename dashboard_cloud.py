@@ -122,13 +122,35 @@ try:
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 3: Summary Metrics
-            st.markdown("<div class='section' style='border-left:6px solid #2ecc71;'><h3>Section 3: 📊 Summary Metrics</h3>", unsafe_allow_html=True)
-            col1, col2, col3, col4 = st.columns(4)
-            col1.markdown(f"**Average HR:** <span style='color:#c0392b;'><b>{df['hr'].mean():.1f} BPM</b></span>", unsafe_allow_html=True)
-            col2.markdown(f"**minSpO₂:** <span style='color:#27ae60;'><b>{df['spo2'].min():.1f} %</b></span>", unsafe_allow_html=True)
-            col3.markdown(f"**Average Temp:** <span style='color:#e67e22;'><b>{df['temp'].mean():.1f} °C</b></span>", unsafe_allow_html=True)
-            col4.markdown(f"**maxTemp:** <span style='color:#e74c3c;'><b>{df['temp'].max():.1f} °C</b></span>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("<div class='section' style='border-left:6px solid #2ecc71;'><h3>📊 Summary Metrics</h3>", unsafe_allow_html=True)
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.markdown(f"""
+    <p style='font-size:26px; font-weight:bold; color:#c0392b;'>
+        Average HR: {df['hr'].mean():.1f} BPM
+    </p>
+""", unsafe_allow_html=True)
+
+col2.markdown(f"""
+    <p style='font-size:26px; font-weight:bold; color:#27ae60;'>
+        minSpO₂: {df['spo2'].min():.1f} %
+    </p>
+""", unsafe_allow_html=True)
+
+col3.markdown(f"""
+    <p style='font-size:26px; font-weight:bold; color:#e67e22;'>
+        Average Temp: {df['temp'].mean():.1f} °C
+    </p>
+""", unsafe_allow_html=True)
+
+col4.markdown(f"""
+    <p style='font-size:26px; font-weight:bold; color:#e74c3c;'>
+        maxTemp: {df['temp'].max():.1f} °C
+    </p>
+""", unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
             # Section 4: Health Trend Comparison
             st.markdown("<div class='section' style='border-left:6px solid #9b59b6;'><h3>Section 4: 📈 Health Trend Comparison</h3>", unsafe_allow_html=True)
