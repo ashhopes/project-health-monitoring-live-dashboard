@@ -182,12 +182,12 @@ try:
 
        
                 # --- Layout 3: Predictions ---
-          # --- Tab 3: Clustering Results ---
+          
         # --- Tab 3: Clustering Results ---
-with tab3:
-    st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
+        with tab3:
+        st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
 
-    try:
+        try:
         # Prediction query using your BigQuery ML model
         query_cluster = """
         SELECT *
@@ -230,8 +230,6 @@ with tab3:
         st.subheader("📊 Cluster Averages (Interpretation)")
         st.dataframe(avg_df)
 
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
-        # --- Layout 3: Predictions ---
 except Exception as e:
-    st.error(f"An error occurred while fetching data: {e}")
+    st.error(f"An error occurred: {e}")
+       
