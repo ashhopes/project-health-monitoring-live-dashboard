@@ -57,12 +57,16 @@ if refresh_rate > 0:
     time.sleep(refresh_rate)
 
 # --- BigQuery Authentication ---
-credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
-client = bigquery.Client(
-    credentials=credentials,
-    project=st.secrets["gcp"]["project_id"],
-    location="asia-southeast1"
-)
+try:
+    credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
+    client = bigquery.Client(
+        credentials=credentials,
+        project=st.secrets["gcp"]["project_id"],
+        location="asia-southeast1"
+    )
+except Exception as e:
+    st.error(f"Error initializing BigQuery client: {e}")
+    st.stop()
 
 # --- Table reference ---
 table_id = "monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2"
@@ -78,8 +82,10 @@ def fetch_latest(n=100):
     """
     return client.query(query).to_dataframe()
 
+# --- Main logic ---
 try:
     df = fetch_latest(n_samples)
+    
     if df.empty:
         st.info("No data found yet. Upload from your local app first.")
     else:
@@ -99,7 +105,24 @@ try:
         # --- Layout 1: Overview ---
         with tab1:
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
-            # (Overview sections here – same as your previous design)
+            
+            # Overview statistics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Records", len(df))
+            with col2:
+                st.metric("Active Subjects", len(subject_ids))
+            with col3:
+                avg_temp = df['temp'].mean()
+                st.metric("Avg Temperature", f"{avg_temp:.2f}°C")
+            with col4:
+                avg_hr = df['hr'].mean()
+                st.metric("Avg Heart Rate", f"{avg_hr:.0f} BPM")
+
+            # Overview chart
+            st.subheader("📊 Overview Chart")
+            overview_df = df.sort_values("timestamp").set_index("timestamp")
+            st.line_chart(overview_df[["temp", "hr", "spo2"]])
 
         # --- Layout 2: Subject Info ---
         with tab2:
@@ -145,7 +168,7 @@ try:
                     """, unsafe_allow_html=True)
 
                     # --- Part 2: Graph ---
-                    subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
+                    subj_df_sorted = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
                     fig = go.Figure()
                     for col, color, label in [
                         ("ax", "#2980b9", "Accel X"),
@@ -155,10 +178,10 @@ try:
                         ("spo2", "#27ae60", "SpO₂"),
                         ("temp", "#e67e22", "Temperature")
                     ]:
-                        if col in subj_df.columns and subj_df[col].notna().any():
+                        if col in subj_df_sorted.columns and subj_df_sorted[col].notna().any():
                             fig.add_trace(go.Scatter(
-                                x=subj_df.index,
-                                y=subj_df[col],
+                                x=subj_df_sorted.index,
+                                y=subj_df_sorted[col],
                                 mode="lines",
                                 name=label,
                                 line=dict(color=color, width=2)
@@ -176,59 +199,59 @@ try:
 
                     # --- Part 3: Live Data Table ---
                     st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
-                    st.dataframe(subj_df.reset_index(), use_container_width=True)
+                    st.dataframe(subj_df_sorted.reset_index(), use_container_width=True)
 
                 st.markdown("</div>", unsafe_allow_html=True)
-                
-                # --- Layout 3: Predictions ---
-          
+
         # --- Tab 3: Clustering Results ---
         with tab3:
-            st.subheader("🧪 Health Signal Clustering (SpO₂, BPM, HR + Movement)")
+            st.subheader("🧪 Health Signal Clustering (SpO₂, HR + Movement)")
 
-    try:
-        # Prediction query using your BigQuery ML model
-        query_cluster = """
-        SELECT *
-        FROM ML.PREDICT(MODEL monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model,
-          (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
-           FROM monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2))
-        """
-        cluster_df = client.query(query_cluster).to_dataframe()
+            try:
+                # Prediction query using your BigQuery ML model
+                query_cluster = """
+                SELECT *
+                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
+                  (SELECT spo2, hr, ax, ay, az, gx, gy, gz
+                   FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
+                """
+                cluster_df = client.query(query_cluster).to_dataframe()
 
-        # Map cluster IDs to health states
-        labels = {0: "Normal", 1: "Active", 2: "Critical"}
-        cluster_df["health_state"] = cluster_df["cluster"].map(labels)
+                # Map cluster IDs to health states
+                labels = {0: "Normal", 1: "Active", 2: "Critical"}
+                cluster_df["health_state"] = cluster_df["predicted_cluster"].map(labels)
 
-        # Show classified results
-        st.dataframe(cluster_df[["spo2","bpm","hr","cluster","health_state"]])
+                # Show classified results
+                st.dataframe(cluster_df[["spo2", "hr", "predicted_cluster", "health_state"]], use_container_width=True)
 
-        # Distribution chart of health states
-        st.bar_chart(cluster_df["health_state"].value_counts())
+                # Distribution chart of health states
+                st.subheader("📊 Health State Distribution")
+                st.bar_chart(cluster_df["health_state"].value_counts())
 
-        # Cluster averages for interpretation
-        avg_query = """
-        SELECT cluster,
-               COUNT(*) AS total_records,
-               AVG(spo2) AS avg_spo2,
-               AVG(bpm) AS avg_bpm,
-               AVG(hr) AS avg_hr,
-               AVG(ax) AS avg_ax,
-               AVG(ay) AS avg_ay,
-               AVG(az) AS avg_az,
-               AVG(gx) AS avg_gx,
-               AVG(gy) AS avg_gy,
-               AVG(gz) AS avg_gz
-        FROM ML.PREDICT(MODEL monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model,
-          (SELECT spo2, bpm, hr, ax, ay, az, gx, gy, gz
-           FROM monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2))
-        GROUP BY cluster
-        ORDER BY cluster
-        """
-        avg_df = client.query(avg_query).to_dataframe()
-        st.subheader("📊 Cluster Averages (Interpretation)")
-        st.dataframe(avg_df)
+                # Cluster averages for interpretation
+                avg_query = """
+                SELECT predicted_cluster,
+                       COUNT(*) AS total_records,
+                       AVG(spo2) AS avg_spo2,
+                       AVG(hr) AS avg_hr,
+                       AVG(ax) AS avg_ax,
+                       AVG(ay) AS avg_ay,
+                       AVG(az) AS avg_az,
+                       AVG(gx) AS avg_gx,
+                       AVG(gy) AS avg_gy,
+                       AVG(gz) AS avg_gz
+                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
+                  (SELECT spo2, hr, ax, ay, az, gx, gy, gz
+                   FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
+                GROUP BY predicted_cluster
+                ORDER BY predicted_cluster
+                """
+                avg_df = client.query(avg_query).to_dataframe()
+                st.subheader("📊 Cluster Averages (Interpretation)")
+                st.dataframe(avg_df, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error fetching clustering results: {e}")
 
 except Exception as e:
-    st.error(f"An error occurred: {e}")
-       
+    st.error(f"Error loading dashboard data: {e}")
+    st.write(f"Details: {str(e)}")
