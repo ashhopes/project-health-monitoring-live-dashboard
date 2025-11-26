@@ -120,6 +120,7 @@ try:
             else:
                 st.markdown("<p style='color:green;'><b>✅ All vitals are within normal range.</b></p>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
+          
 
             # Section 3: Summary Metrics
 st.markdown("<div class='section' style='border-left:6px solid #2ecc71;'><h3>📊 Summary Metrics</h3>", unsafe_allow_html=True)
@@ -151,6 +152,9 @@ col4.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
+
+            except Exception as e:
+            st.error(f"❌ Error fetching data: {e}")
 
             # Section 4: Health Trend Comparison
             st.markdown("<div class='section' style='border-left:6px solid #9b59b6;'><h3>Section 4: 📈 Health Trend Comparison</h3>", unsafe_allow_html=True)
