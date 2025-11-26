@@ -115,6 +115,7 @@ try:
             st.subheader("📈 Section 1: System Overview")
 
        # Alerts Section
+# Alerts Section
 st.markdown("<div class='section'><h2>⚠️ Alerts</h2>", unsafe_allow_html=True)
 
 alerts = []
@@ -131,7 +132,7 @@ if 'hr' in df.columns and (df['hr'] > 120).any():
 if 'temp' in df.columns and (df['temp'] > 38).any():
     alerts.append("Fever detected (Temp > 38°C)")
 
-# LN / SO₂ check (ikut schema kamu)
+# SO₂ & LN check
 if 'so2' in df.columns and (df['so2'] > 0.1).any():
     alerts.append("SO₂ levels above threshold")
 if 'ln' in df.columns and (df['ln'] > 1.0).any():
@@ -148,6 +149,7 @@ if alerts:
 else:
     st.success("All vitals and sensor readings are within normal range.")
 
+# End CSS section
 st.markdown("</div>", unsafe_allow_html=True)
 
             # Summary Metrics
