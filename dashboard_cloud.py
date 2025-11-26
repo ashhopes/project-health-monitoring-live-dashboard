@@ -5,40 +5,47 @@ from google.oauth2 import service_account
 import plotly.graph_objects as go
 import time
 
-# --- Login logic ---
-def check_login():
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-
-    if not st.session_state.logged_in:
-        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-        st.markdown("<div class='login-title'>🔐 Login Page</div>", unsafe_allow_html=True)
-
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
-        if st.button("Login"):
-            if username == "admin" and password == "moon123":   # ✅ set your credentials here
-                st.session_state.logged_in = True
-                st.success("✅ Login successful!")
-            else:
-                st.error("❌ Invalid username or password")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.stop()
-
-# --- Run login check ---
-check_login()
-
-
-# --- Page setup ---
-st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
-
-# --- Custom Elegant Theme ---
-st.markdown(
-    """
+st.markdown("""
     <style>
-
+    body {
+        background-color: #f2f2f2;
+        background-image: url("https://images.unsplash.com/photo-1588776814546-ec7d2c7f1b6b"); /* optional muted background */
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+    .login-box {
+        background-color: #e6e6e6;
+        border: 1px solid #999999;
+        border-radius: 8px;
+        padding: 25px;
+        width: 350px;
+        margin: auto;
+        margin-top: 120px;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+    }
+    .login-title {
+        text-align: center;
+        font-size: 22px;
+        font-weight: 500;
+        color: #333333;
+        margin-bottom: 20px;
+    }
+    .stTextInput > div > input {
+        background-color: #f9f9f9;
+        color: #333333;
+        border: 1px solid #cccccc;
+    }
+    .stButton button {
+        background-color: #cccccc;
+        color: #333333;
+        border-radius: 4px;
+        border: none;
+        padding: 6px 16px;
+    }
+            
+            
     .login-box {
         background-color: #ffffff;
         border: 2px solid #4B0082;
@@ -81,9 +88,36 @@ st.markdown(
         border-radius: 10px; padding: 15px; margin-bottom: 25px;
     }
     </style>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
+
+# --- Login logic ---
+def check_login():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    if not st.session_state.logged_in:
+        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+        st.markdown("<div class='login-title'>🔐 Login Page</div>", unsafe_allow_html=True)
+
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if username == "admin" and password == "moon123":   # ✅ your credentials
+                st.session_state.logged_in = True
+                st.success("✅ Login successful!")
+            else:
+                st.error("❌ Invalid username or password")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.stop()
+
+# --- Run login check ---
+check_login()
+
+
+# --- Page setup ---
+st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
 
 # --- Header ---
 st.markdown("<h1 style='text-align: center; color:#4B0082;'>🧠 Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
