@@ -261,50 +261,50 @@ try:
                         </ul>
                     """, unsafe_allow_html=True)
 
-                    # --- Part 2: Graph ---
+                    
                     # --- Part 2: PPG Waveform Graph ---
-subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
-fig = go.Figure()
+                    subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
+                    fig = go.Figure()
 
-# Plot IR signal
-if "ir" in subj_df.columns and subj_df["ir"].notna().any():
-    fig.add_trace(go.Scatter(
-        x=subj_df.index,
-        y=subj_df["ir"],
-        mode="lines",
-        name="IR Signal",
-        line=dict(color="#8e44ad", width=2)
-    ))
+                    # Plot IR signal
+                    if "ir" in subj_df.columns and subj_df["ir"].notna().any():
+                     fig.add_trace(go.Scatter(
+                     x=subj_df.index,
+                     y=subj_df["ir"],
+                     mode="lines",
+                    name="IR Signal",
+                    line=dict(color="#8e44ad", width=2)
+                    ))
 
-# Plot RED signal
-if "red" in subj_df.columns and subj_df["red"].notna().any():
-    fig.add_trace(go.Scatter(
-        x=subj_df.index,
-        y=subj_df["red"],
-        mode="lines",
-        name="RED Signal",
-        line=dict(color="#e74c3c", width=2)
-    ))
+                    # Plot RED signal
+                    if "red" in subj_df.columns and subj_df["red"].notna().any():
+                    fig.add_trace(go.Scatter(
+                    x=subj_df.index,
+                    y=subj_df["red"],
+                    mode="lines",
+                    name="RED Signal",
+                    line=dict(color="#e74c3c", width=2)
+                ))
 
-fig.update_layout(
-    title=f"<b>PPG Waveform for {sid}</b>",
-    xaxis_title="Timestamp",
-    yaxis_title="Signal Value",
-    plot_bgcolor="#fdf6ec",
-    paper_bgcolor="#fdf6ec",
-    font=dict(size=14),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-)
+                    fig.update_layout(
+                    title=f"<b>PPG Waveform for {sid}</b>",
+                    xaxis_title="Timestamp",
+                    yaxis_title="Signal Value",
+                    plot_bgcolor="#fdf6ec",
+                    paper_bgcolor="#fdf6ec",
+                    font=dict(size=14),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
 
-st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True)
                     # --- Part 3: Live Data Table ---
-st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
-st.dataframe(subj_df.reset_index(), use_container_width=True)
+                    st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
+                    st.dataframe(subj_df.reset_index(), use_container_width=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Tab 3: Clustering Results ---
-with tab3:
+        with tab3:
             st_autorefresh(interval=refresh_rate * 1000, key="tab3_refresh")
 
             st.subheader("🧪 Health Signal Clustering (SpO₂, HR + Movement)")
