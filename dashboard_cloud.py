@@ -156,7 +156,7 @@ try:
 
             # --- Layout 1: System Overview ---
         with tab1:
-             st_autorefresh(interval=refresh_rate * 1000, key="tab1_refresh")
+            st_autorefresh(interval=refresh_rate * 1000, key="tab1_refresh")
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
