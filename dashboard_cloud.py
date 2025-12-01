@@ -157,7 +157,6 @@ try:
             # --- Layout 1: System Overview ---
         with tab1:
              st_autorefresh(interval=refresh_rate * 1000, key="tab1_refresh")
-
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
@@ -219,7 +218,7 @@ try:
 
         # --- Layout 2: Subject Info ---
         with tab2:
-             st_autorefresh(interval=refresh_rate * 1000, key="tab2_refresh")
+            st_autorefresh(interval=refresh_rate * 1000, key="tab2_refresh")
             st.subheader("👤 Section 2: Subject Info")
 
             # Define all subjects (3 COMs)
@@ -278,22 +277,22 @@ try:
 
                     # Plot RED signal
                     if "red" in subj_df.columns and subj_df["red"].notna().any():
-                    fig.add_trace(go.Scatter(
-                    x=subj_df.index,
-                    y=subj_df["red"],
-                    mode="lines",
-                    name="RED Signal",
-                    line=dict(color="#e74c3c", width=2)
-                ))
+                        fig.add_trace(go.Scatter(
+                        x=subj_df.index,
+                        y=subj_df["red"],
+                        mode="lines",
+                        name="RED Signal",
+                        line=dict(color="#e74c3c", width=2)
+                    ))
 
-                    fig.update_layout(
-                    title=f"<b>PPG Waveform for {sid}</b>",
-                    xaxis_title="Timestamp",
-                    yaxis_title="Signal Value",
-                    plot_bgcolor="#fdf6ec",
-                    paper_bgcolor="#fdf6ec",
-                    font=dict(size=14),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        fig.update_layout(
+                        title=f"<b>PPG Waveform for {sid}</b>",
+                        xaxis_title="Timestamp",
+                        yaxis_title="Signal Value",
+                        plot_bgcolor="#fdf6ec",
+                        paper_bgcolor="#fdf6ec",
+                        font=dict(size=14),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
 
                     st.plotly_chart(fig, use_container_width=True)
