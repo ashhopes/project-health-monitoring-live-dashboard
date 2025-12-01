@@ -156,6 +156,8 @@ try:
 
             # --- Layout 1: System Overview ---
         with tab1:
+             st_autorefresh(interval=refresh_rate * 1000, key="tab1_refresh")
+
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
@@ -217,6 +219,7 @@ try:
 
         # --- Layout 2: Subject Info ---
         with tab2:
+             st_autorefresh(interval=refresh_rate * 1000, key="tab2_refresh")
             st.subheader("👤 Section 2: Subject Info")
 
             # Define all subjects (3 COMs)
@@ -296,12 +299,14 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
                     # --- Part 3: Live Data Table ---
 st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
-                    st.dataframe(subj_df.reset_index(), use_container_width=True)
+st.dataframe(subj_df.reset_index(), use_container_width=True)
 
-                st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Tab 3: Clustering Results ---
-        with tab3:
+with tab3:
+            st_autorefresh(interval=refresh_rate * 1000, key="tab3_refresh")
+
             st.subheader("🧪 Health Signal Clustering (SpO₂, HR + Movement)")
 
             try:
