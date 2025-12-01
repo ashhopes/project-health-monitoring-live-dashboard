@@ -3,6 +3,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
 import plotly.graph_objects as go
+from streamlit_autorefresh import st_autorefresh
 import time
 
 st.markdown("""
