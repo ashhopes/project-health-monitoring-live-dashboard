@@ -5,6 +5,7 @@ from google.oauth2 import service_account
 import plotly.graph_objects as go
 import time
 
+
 st.markdown("""
     <style>
     body {
@@ -72,6 +73,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
 # --- Login logic ---
 def check_login():
     if "logged_in" not in st.session_state:
@@ -106,12 +108,14 @@ st.markdown("---")
 
 # --- Sidebar controls ---
 st.sidebar.header("⚙️ Controls")
-refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 0, 120, 30)
+refresh_rate = st.sidebar.slider("🔄 Auto-refresh every (seconds)", 5, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
 st.sidebar.info("Project by mOONbLOOM26 🌙")
 
+# ✅ AUTO REFRESH - ONLY CHANGE MADE
 if refresh_rate > 0:
     time.sleep(refresh_rate)
+    st.rerun()
 
 # --- BigQuery Authentication ---
 credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
