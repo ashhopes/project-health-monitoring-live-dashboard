@@ -9,7 +9,7 @@ st.markdown("""
     <style>
     body {
         background-color: #f2f2f2;
-        background-image: url("https://images.unsplash.com/photo-1588776814546-ec7d2c7f1b6b"); /* optional muted background */
+        background-image: url("https://images.unsplash.com/photo-1588776814546-ec7d2c7f1b6b");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
@@ -84,7 +84,7 @@ def check_login():
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            if username == "admin" and password == "moon123":   # ✅ your credentials
+            if username == "admin" and password == "moon123":
                 st.session_state.logged_in = True
                 st.success("✅ Login successful!")
             else:
@@ -95,7 +95,6 @@ def check_login():
 
 # --- Run login check ---
 check_login()
-
 
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
@@ -154,14 +153,12 @@ try:
         # --- Tabs ---
         tab1, tab2, tab3 = st.tabs(["📈 Overview", "👤 Subject Info", "🤖 Predictions"])
 
-            # --- Layout 1: System Overview ---
+        # --- Layout 1: System Overview ---
         with tab1:
-
             st.markdown("<h2 style='color:#4B0082;'>📈 System Overview</h2>", unsafe_allow_html=True)
 
             # Section 1: Active Subjects
             st.markdown("<div class='section' style='border-left:6px solid #3498db;'><h3>👥Section 1: Active Subjects</h3>", unsafe_allow_html=True)
-            active_subjects = df['id_user'].dropna().unique().tolist()
             active_subjects = df['id_user'].dropna().unique().tolist()
             st.markdown(f"<b>Currently receiving data from <span style='color:#3498db;'>{len(active_subjects)}</span> subjects:</b>", unsafe_allow_html=True)
             st.json({i: sid for i, sid in enumerate(active_subjects)})
@@ -218,7 +215,6 @@ try:
 
         # --- Layout 2: Subject Info ---
         with tab2:
-             st_autorefresh(interval=refresh_rate * 1000, key="tab2_refresh")
             st.subheader("👤 Section 2: Subject Info")
 
             # Define all subjects (3 COMs)
@@ -260,39 +256,38 @@ try:
                         </ul>
                     """, unsafe_allow_html=True)
 
-                    
                     # --- Part 2: PPG Waveform Graph ---
                     subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
                     fig = go.Figure()
 
                     # Plot IR signal
                     if "ir" in subj_df.columns and subj_df["ir"].notna().any():
-                     fig.add_trace(go.Scatter(
-                     x=subj_df.index,
-                     y=subj_df["ir"],
-                     mode="lines",
-                    name="IR Signal",
-                    line=dict(color="#8e44ad", width=2)
-                    ))
+                        fig.add_trace(go.Scatter(
+                            x=subj_df.index,
+                            y=subj_df["ir"],
+                            mode="lines",
+                            name="IR Signal",
+                            line=dict(color="#8e44ad", width=2)
+                        ))
 
                     # Plot RED signal
                     if "red" in subj_df.columns and subj_df["red"].notna().any():
-                    fig.add_trace(go.Scatter(
-                    x=subj_df.index,
-                    y=subj_df["red"],
-                    mode="lines",
-                    name="RED Signal",
-                    line=dict(color="#e74c3c", width=2)
-                ))
+                        fig.add_trace(go.Scatter(
+                            x=subj_df.index,
+                            y=subj_df["red"],
+                            mode="lines",
+                            name="RED Signal",
+                            line=dict(color="#e74c3c", width=2)
+                        ))
 
                     fig.update_layout(
-                    title=f"<b>PPG Waveform for {sid}</b>",
-                    xaxis_title="Timestamp",
-                    yaxis_title="Signal Value",
-                    plot_bgcolor="#fdf6ec",
-                    paper_bgcolor="#fdf6ec",
-                    font=dict(size=14),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                        title=f"<b>PPG Waveform for {sid}</b>",
+                        xaxis_title="Timestamp",
+                        yaxis_title="Signal Value",
+                        plot_bgcolor="#fdf6ec",
+                        paper_bgcolor="#fdf6ec",
+                        font=dict(size=14),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
 
                     st.plotly_chart(fig, use_container_width=True)
@@ -300,7 +295,7 @@ try:
                     st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
                     st.dataframe(subj_df.reset_index(), use_container_width=True)
 
-                    st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Tab 3: Clustering Results ---
         with tab3:
@@ -311,8 +306,8 @@ try:
                 query_cluster = """
                 SELECT *
                 FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
-                  (SELECT spo2, hr, ax, ay, az, gx, gy, gz
-                   FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
+                 (SELECT spo2, hr, ax, ay, az, gx, gy, gz
+                  FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
                 """
                 cluster_df = client.query(query_cluster).to_dataframe()
 
@@ -340,8 +335,8 @@ try:
                        AVG(gy) AS avg_gy,
                        AVG(gz) AS avg_gz
                 FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
-                  (SELECT spo2, hr, ax, ay, az, gx, gy, gz
-                   FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
+                 (SELECT spo2, hr, ax, ay, az, gx, gy, gz
+                  FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
                 GROUP BY predicted_cluster
                 ORDER BY predicted_cluster
                 """
