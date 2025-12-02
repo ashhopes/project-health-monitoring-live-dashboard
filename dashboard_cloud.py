@@ -72,7 +72,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-
 # --- Login logic ---
 def check_login():
     if "logged_in" not in st.session_state:
@@ -94,20 +93,16 @@ def check_login():
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
 
-
 # --- Run login check ---
 check_login()
 
-
 # --- Page setup ---
 st.set_page_config(page_title="Live Health Monitoring System with LoRa", layout="wide")
-
 
 # --- Header ---
 st.markdown("<h1 style='text-align: center; color:#4B0082;'>🧠 Live Health Monitoring System with LoRa</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center;'>Real-time monitoring of vital signs and motion data using LoRa sensors</p>", unsafe_allow_html=True)
 st.markdown("---")
-
 
 # --- Sidebar controls ---
 st.sidebar.header("⚙️ Controls")
@@ -118,7 +113,6 @@ st.sidebar.info("Project by mOONbLOOM26 🌙")
 if refresh_rate > 0:
     time.sleep(refresh_rate)
 
-
 # --- BigQuery Authentication ---
 credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
 client = bigquery.Client(
@@ -127,10 +121,8 @@ client = bigquery.Client(
     location="asia-southeast1"
 )
 
-
 # --- Table reference ---
 table_id = "monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2"
-
 
 # --- Fetch latest data ---
 @st.cache_data(ttl=30)
@@ -142,7 +134,6 @@ def fetch_latest(n=100):
         LIMIT {n}
     """
     return client.query(query).to_dataframe()
-
 
 try:
     df = fetch_latest(n_samples)
@@ -223,81 +214,81 @@ try:
             st.markdown("</div>", unsafe_allow_html=True)
 
         # --- Layout 2: Subject Info ---
-        with tab2:
-            st.subheader("👤 Section 2: Subject Info")
+       with tab2:
+    st.subheader("👤 Section 2: Subject Info")
 
-            all_subjects = ["user_001", "user_002", "user_003"]
-            active_subjects = df['id_user'].dropna().unique().tolist()
+    all_subjects = ["user_001", "user_002", "user_003"]
+    active_subjects = df['id_user'].dropna().unique().tolist()
 
-            biodata = {
-                "user_001": {"Age": 25, "Weight": 60, "Height": 165},
-                "user_002": {"Age": 30, "Weight": 70, "Height": 170},
-                "user_003": {"Age": 28, "Weight": 55, "Height": 160}
-            }
+    biodata = {
+        "user_001": {"Age": 25, "Weight": 60, "Height": 165},
+        "user_002": {"Age": 30, "Weight": 70, "Height": 170},
+        "user_003": {"Age": 28, "Weight": 55, "Height": 160}
+    }
 
-            for sid in all_subjects:
-                st.markdown(f"<div class='subject-box'><h3>🧑 Subject {sid}</h3>", unsafe_allow_html=True)
+    for sid in all_subjects:
+        st.markdown(f"<div class='subject-box'><h3>🧑 Subject {sid}</h3>", unsafe_allow_html=True)
 
-                if sid not in active_subjects:
-                    st.markdown("<p style='color:gray;'>❌ Subject not active yet. No data received.</p>", unsafe_allow_html=True)
-                else:
-                    subj_df = df[df['id_user'] == sid].copy()
-                    subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
+        if sid not in active_subjects:
+            st.markdown("<p style='color:gray;'>❌ Subject not active yet. No data received.</p>", unsafe_allow_html=True)
+        else:
+            subj_df = df[df['id_user'] == sid].copy()
+            subj_df = subj_df.sort_values("timestamp", ascending=True).set_index("timestamp")
 
-                    # --- Part 1: Biodata & Latest Vitals ---
-                    bio = biodata.get(sid, {})
-                    latest = subj_df.iloc[-1] if not subj_df.empty else {}
+            # --- Part 1: Biodata & Latest Vitals ---
+            bio = biodata.get(sid, {})
+            latest = subj_df.iloc[-1] if not subj_df.empty else {}
 
-                    st.markdown(f"""
-                        <ul>
-                            <li><b>Age:</b> {bio.get("Age", "N/A")} years</li>
-                            <li><b>Weight:</b> {bio.get("Weight", "N/A")} kg</li>
-                            <li><b>Height:</b> {bio.get("Height", "N/A")} cm</li>
-                            <li><b>SpO₂:</b> <span style='color:#27ae60; font-weight:bold;'>{latest.get('spo2', 'N/A')}</span> %</li>
-                            <li><b>HR:</b> <span style='color:#c0392b; font-weight:bold;'>{latest.get('hr', 'N/A')}</span> BPM</li>
-                            <li><b>Temp:</b> <span style='color:#e67e22; font-weight:bold;'>{latest.get('temp', 'N/A')}</span> °C</li>
-                        </ul>
-                    """ ,unsafe_allow_html=True)
+            st.markdown(f"""
+                <ul>
+                    <li><b>Age:</b> {bio.get("Age", "N/A")} years</li>
+                    <li><b>Weight:</b> {bio.get("Weight", "N/A")} kg</li>
+                    <li><b>Height:</b> {bio.get("Height", "N/A")} cm</li>
+                    <li><b>SpO₂:</b> <span style='color:#27ae60; font-weight:bold;'>{latest.get('spo2', 'N/A')}</span> %</li>
+                    <li><b>HR:</b> <span style='color:#c0392b; font-weight:bold;'>{latest.get('hr', 'N/A')}</span> BPM</li>
+                    <li><b>Temp:</b> <span style='color:#e67e22; font-weight:bold;'>{latest.get('temp', 'N/A')}</span> °C</li>
+                </ul>
+            """, unsafe_allow_html=True)
 
-                    # --- Part 2: Live Data Table (include IR & RED) ---
-                    st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
-                    st.dataframe(
-                        subj_df.reset_index()[["timestamp","spo2","hr","temp","humidity","ir","red"]],
-                        use_container_width=True
-                    )
+            # --- Part 2: Live Data Table (include IR & RED) ---
+            st.markdown("<h4>📋 Live Data Table</h4>", unsafe_allow_html=True)
+            st.dataframe(
+                subj_df.reset_index()[["timestamp","spo2","hr","temp","humidity","ir","red"]],
+                use_container_width=True
+            )
 
-                    # --- Part 3: PPG Graph (based on IR & RED in table) ---
-                    fig = go.Figure()
-                    if "ir" in subj_df.columns and subj_df["ir"].notna().any():
-                        fig.add_trace(go.Scatter(
-                            x=subj_df.index,
-                            y=subj_df["ir"],
-                            mode="lines",
-                            name="IR Signal",
-                            line=dict(color="#8e44ad", width=2)
-                        ))
-                    if "red" in subj_df.columns and subj_df["red"].notna().any():
-                        fig.add_trace(go.Scatter(
-                            x=subj_df.index,
-                            y=subj_df["red"],
-                            mode="lines",
-                            name="RED Signal",
-                            line=dict(color="#e74c3c", width=2)
-                        ))
+            # --- Part 3: PPG Graph (based on IR & RED in table) ---
+            fig = go.Figure()
+            if "ir" in subj_df.columns and subj_df["ir"].notna().any():
+                fig.add_trace(go.Scatter(
+                    x=subj_df.index,
+                    y=subj_df["ir"],
+                    mode="lines",
+                    name="IR Signal",
+                    line=dict(color="#8e44ad", width=2)
+                ))
+            if "red" in subj_df.columns and subj_df["red"].notna().any():
+                fig.add_trace(go.Scatter(
+                    x=subj_df.index,
+                    y=subj_df["red"],
+                    mode="lines",
+                    name="RED Signal",
+                    line=dict(color="#e74c3c", width=2)
+                ))
 
-                    fig.update_layout(
-                        title=f"<b>PPG Waveform for {sid}</b>",
-                        xaxis_title="Timestamp",
-                        yaxis_title="Signal Value",
-                        plot_bgcolor="#fdf6ec",
-                        paper_bgcolor="#fdf6ec",
-                        font=dict(size=14),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+            fig.update_layout(
+                title=f"<b>PPG Waveform for {sid}</b>",
+                xaxis_title="Timestamp",
+                yaxis_title="Signal Value",
+                plot_bgcolor="#fdf6ec",
+                paper_bgcolor="#fdf6ec",
+                font=dict(size=14),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-                st.markdown("</div>", unsafe_allow_html=True)
-
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         # --- Tab 3: Clustering Results ---
         with tab3:
             st.subheader("🧪 Health Signal Clustering (SpO₂, HR + Movement)")
