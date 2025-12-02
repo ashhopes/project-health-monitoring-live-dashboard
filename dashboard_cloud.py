@@ -110,7 +110,7 @@ st.markdown("---")
 st.sidebar.header("⚙️ Controls")
 refresh_rate = st.sidebar.slider("Auto-refresh every (seconds)", 5, 120, 30)
 n_samples = st.sidebar.slider("Number of samples to display", 50, 500, 100)
-st.sidebar.info("Project by TG22051")
+st.sidebar.info("Project by mOONbLOOM26 🌙")
 
 if refresh_rate > 0:
     time.sleep(refresh_rate)
@@ -319,4 +319,36 @@ try:
                 cluster_df["health_state"] = cluster_df["predicted_cluster"].map(labels)
 
                 # Show classified results
-                st
+                st.dataframe(cluster_df[["spo2", "hr", "predicted_cluster", "health_state"]], use_container_width=True)
+
+                # Distribution chart of health states
+                st.subheader("📊 Health State Distribution")
+                st.bar_chart(cluster_df["health_state"].value_counts())
+
+                # Cluster averages for interpretation
+                avg_query = """
+                SELECT predicted_cluster,
+                       COUNT(*) AS total_records,
+                       AVG(spo2) AS avg_spo2,
+                       AVG(hr) AS avg_hr,
+                       AVG(ax) AS avg_ax,
+                       AVG(ay) AS avg_ay,
+                       AVG(az) AS avg_az,
+                       AVG(gx) AS avg_gx,
+                       AVG(gy) AS avg_gy,
+                       AVG(gz) AS avg_gz
+                FROM ML.PREDICT(MODEL `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_model`,
+                 (SELECT spo2, hr, ax, ay, az, gx, gy, gz
+                  FROM `monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2`))
+                GROUP BY predicted_cluster
+                ORDER BY predicted_cluster
+                """
+                avg_df = client.query(avg_query).to_dataframe()
+                st.subheader("📊 Cluster Averages (Interpretation)")
+                st.dataframe(avg_df, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error fetching clustering results: {e}")
+
+except Exception as e:
+    st.error(f"Error loading dashboard data: {e}")
+    st.write(f"Details: {str(e)}")
