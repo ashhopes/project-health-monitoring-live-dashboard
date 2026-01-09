@@ -1,5 +1,23 @@
-# --- Login logic ---
+# dashboard_cloud.py - COMPLETE FILE WITH CORRECT STRUCTURE
+
+# ================ IMPORTS ================
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+from google.cloud import bigquery
+from google.oauth2 import service_account
+import google.auth
+import time
+from io import BytesIO
+import json
+import os
+
+# ================ LOGIN FUNCTION ================
 def check_login():
+    """Check if user is logged in, show login form if not"""
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
 
@@ -26,7 +44,9 @@ def check_login():
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
 
-# --- Run login check ---
+# ================ MAIN CODE ================
+
+# --- Run login check first ---
 check_login()
 
 # --- Page setup ---
@@ -51,12 +71,44 @@ if refresh_rate > 0:
     time.sleep(refresh_rate)
 
 # --- BigQuery Authentication ---
-credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
-client = bigquery.Client(
-    credentials=credentials,
-    project=st.secrets["gcp"]["project_id"],
-    location="asia-southeast1"
-)
+try:
+    # Option 1: Using Streamlit secrets (for Streamlit Cloud)
+    if "gcp" in st.secrets:
+        credentials = service_account.Credentials.from_service_account_info(
+            dict(st.secrets["gcp"])
+        )
+        project_id = st.secrets["gcp"]["project_id"]
+    
+    # Option 2: Using environment variable
+    else:
+        # Check for environment variable
+        creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        if creds_json:
+            creds_info = json.loads(creds_json)
+            credentials = service_account.Credentials.from_service_account_info(creds_info)
+            project_id = creds_info.get("project_id", "monitoring-system-with-lora")
+        else:
+            # Option 3: Default credentials
+            credentials, project = google.auth.default()
+            project_id = project or "monitoring-system-with-lora"
+    
+    # Initialize BigQuery client
+    client = bigquery.Client(
+        credentials=credentials,
+        project=project_id,
+        location="asia-southeast1"
+    )
+    
+    st.sidebar.success("✅ Connected to BigQuery")
+    
+except Exception as e:
+    st.error(f"❌ BigQuery authentication failed: {e}")
+    st.info("""
+    **Authentication Setup:**
+    1. For Streamlit Cloud: Add service account JSON to Secrets
+    2. For local: Set GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable
+    """)
+    st.stop()
 
 # --- Table reference ---
 table_id = "monitoring-system-with-lora.sdp2_live_monitoring_system.lora_health_data_clean2"
@@ -101,10 +153,12 @@ def get_available_nodes():
     result = client.query(query).to_dataframe()
     return result['id_user'].tolist()
 
+# --- Main dashboard logic ---
 try:
     df = fetch_latest(n_samples)
     if df.empty:
         st.info("No data found yet. Upload from your local app first.")
+        st.info("Run the uploader.py script to start sending data.")
     else:
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors="coerce")
         
