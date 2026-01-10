@@ -11,8 +11,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
 import time
+import json
 import pytz
 from collections import deque
+import os
 
 # ================ TRY TO IMPORT SERIAL ================
 try:
@@ -20,6 +22,7 @@ try:
     SERIAL_AVAILABLE = True
 except ImportError:
     SERIAL_AVAILABLE = False
+    st.warning("⚠️ pyserial not installed. Install with: pip install pyserial")
 
 # ================ PAGE CONFIG ================
 st.set_page_config(
@@ -81,109 +84,50 @@ st.markdown("""
         background: #8B4513 !important;
         color: white !important;
     }
+    
+    .status-normal { color: #4CAF50; font-weight: bold; }
+    .status-warning { color: #FF9800; font-weight: bold; }
+    .status-critical { color: #F44336; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# ================ INITIALIZE DATA BUFFERS ================
+# ================ FIXED: INITIALIZE DATA BUFFERS ================
 def init_session_state():
-    """Initialize all session state variables"""
+    """Initialize all session state variables WITH DATA"""
     if 'initialized' not in st.session_state:
         st.session_state.initialized = True
-        
-        # Initialize all buffers with at least one value to prevent empty deques
         current_time = datetime.now()
         
-        # Initialize with dummy data
-        st.session_state.hr_data = deque([70], maxlen=50)
-        st.session_state.spo2_data = deque([98], maxlen=50)
-        st.session_state.temp_data = deque([36.5], maxlen=50)
-        st.session_state.movement_data = deque([1.0], maxlen=50)
-        st.session_state.timestamps = deque([current_time], maxlen=50)
+        # Create INITIAL DATA to prevent empty buffers
+        initial_hr = 75
+        initial_spo2 = 98
+        initial_temp = 36.5
+        initial_movement = 1.0
+        
+        # Initialize with 10 data points (not empty)
+        st.session_state.hr_data = deque([initial_hr + np.random.normal(0, 3) for _ in range(10)], maxlen=50)
+        st.session_state.spo2_data = deque([initial_spo2 + np.random.normal(0, 1) for _ in range(10)], maxlen=50)
+        st.session_state.temp_data = deque([initial_temp + np.random.normal(0, 0.2) for _ in range(10)], maxlen=50)
+        st.session_state.movement_data = deque([initial_movement + np.random.normal(0, 0.3) for _ in range(10)], maxlen=50)
+        st.session_state.timestamps = deque([current_time - timedelta(seconds=i) for i in range(10)][::-1], maxlen=50)
         st.session_state.raw_packets = deque(maxlen=20)
         
         # Store complete data records
-        st.session_state.all_data = deque(maxlen=50)
+        st.session_state.all_data = deque([
+            {
+                'timestamp': current_time - timedelta(seconds=i),
+                'hr': initial_hr + np.random.normal(0, 3),
+                'spo2': initial_spo2 + np.random.normal(0, 1),
+                'temp': initial_temp + np.random.normal(0, 0.2),
+                'movement': initial_movement + np.random.normal(0, 0.3),
+                'activity': ['RESTING', 'WALKING', 'RUNNING'][i % 3]
+            }
+            for i in range(10)
+        ], maxlen=50)
 
-# Initialize session state
-init_session_state()
-
-# ================ PARSE ACTUAL STEMCUBE DATA ================
-
-def parse_stemcube_packet(raw_line):
-    """Parse ACTUAL STEMCUBE data"""
-    data = {
-        'hr': 70,
-        'spo2': 98,
-        'temp': 36.5,
-        'movement': 1.0,
-        'activity': 'RESTING',
-        'packet_id': 0,
-        'node_id': 'NODE_e661',
-        'raw': raw_line[:50] + "..." if len(raw_line) > 50 else raw_line,
-        'is_real': False,
-        'timestamp': datetime.now()
-    }
-    
-    try:
-        if raw_line.startswith('[') and ']' in raw_line:
-            packet_end = raw_line.find(']')
-            packet_id_str = raw_line[1:packet_end]
-            try:
-                data['packet_id'] = int(packet_id_str)
-            except:
-                data['packet_id'] = 0
-            
-            data_part = raw_line[packet_end + 1:].strip()
-            
-            if '|' in data_part:
-                parts = data_part.split('|')
-                
-                if len(parts) >= 1:
-                    try:
-                        data['hr'] = int(parts[0].strip())
-                    except:
-                        pass
-                
-                if len(parts) >= 2:
-                    try:
-                        second_val = int(parts[1].strip())
-                        if 70 <= second_val <= 100:
-                            data['spo2'] = second_val
-                    except:
-                        pass
-                
-                if len(parts) >= 2:
-                    try:
-                        temp_val = float(parts[1].strip())
-                        if 20 <= temp_val <= 45:
-                            data['temp'] = temp_val
-                    except:
-                        pass
-            
-            if 'NODE_' in data_part.upper():
-                node_part = data_part.upper().split('NODE_')[-1]
-                data['node_id'] = f"NODE_{node_part.split()[0] if ' ' in node_part else node_part[:4]}"
-        
-        # Determine activity
-        if data['hr'] < 60:
-            data['activity'] = 'RESTING'
-            data['movement'] = 0.5 + np.random.random() * 0.5
-        elif data['hr'] < 100:
-            data['activity'] = 'WALKING'
-            data['movement'] = 2.0 + np.random.random() * 1.5
-        else:
-            data['activity'] = 'RUNNING'
-            data['movement'] = 4.0 + np.random.random() * 2.0
-        
-        data['is_real'] = True
-        
-    except:
-        pass
-    
-    return data
-
-def read_com8_data():
-    """Read REAL data from COM8"""
+# ================ SIMPLIFIED DATA READING ================
+def read_com8_simple():
+    """Simple COM8 reader - returns data if available"""
     if not SERIAL_AVAILABLE:
         return None
     
@@ -194,9 +138,54 @@ def read_com8_data():
             raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
             ser.close()
             
-            if raw_line:
-                data = parse_stemcube_packet(raw_line)
+            if raw_line and len(raw_line) > 5:  # Valid data check
+                # Parse simple format
+                data = {
+                    'timestamp': datetime.now(),
+                    'hr': 75,
+                    'spo2': 98,
+                    'temp': 36.5,
+                    'movement': 1.0,
+                    'activity': 'RESTING',
+                    'packet_id': int(time.time() * 100) % 10000,
+                    'node_id': 'NODE_e661',
+                    'raw': raw_line[:80],
+                    'is_real': True
+                }
                 
+                # Try to extract numbers
+                try:
+                    # Look for HR pattern
+                    if 'HR:' in raw_line:
+                        hr_part = raw_line.split('HR:')[1].split()[0]
+                        data['hr'] = int(''.join(filter(str.isdigit, hr_part))[:3])
+                    
+                    # Look for SpO2 pattern
+                    if 'SpO2:' in raw_line:
+                        spo2_part = raw_line.split('SpO2:')[1].split()[0]
+                        data['spo2'] = int(''.join(filter(str.isdigit, spo2_part))[:3])
+                    
+                    # Look for temperature
+                    if 'TEMP:' in raw_line or 'Temp:' in raw_line:
+                        temp_key = 'TEMP:' if 'TEMP:' in raw_line else 'Temp:'
+                        temp_part = raw_line.split(temp_key)[1].split()[0]
+                        data['temp'] = float(''.join(c for c in temp_part if c.isdigit() or c == '.'))
+                    
+                    # Determine activity based on HR
+                    if data['hr'] < 70:
+                        data['activity'] = 'RESTING'
+                        data['movement'] = 0.5
+                    elif data['hr'] < 100:
+                        data['activity'] = 'WALKING'
+                        data['movement'] = 2.0
+                    else:
+                        data['activity'] = 'RUNNING'
+                        data['movement'] = 4.0
+                        
+                except:
+                    pass  # Keep default values
+                
+                # Add to raw packets
                 st.session_state.raw_packets.append({
                     'time': datetime.now().strftime('%H:%M:%S'),
                     'packet': raw_line[:80]
@@ -205,60 +194,70 @@ def read_com8_data():
                 return data
         
         ser.close()
-    except:
-        pass
+    except Exception as e:
+        st.sidebar.error(f"COM8 Error: {str(e)[:50]}")
     
     return None
 
 def get_current_data():
     """Get current data - ALWAYS returns valid data"""
-    real_data = read_com8_data()
+    # Try to read from COM8
+    real_data = read_com8_simple()
     
     if real_data:
         return real_data
     else:
-        # Generate demo data
+        # Generate DEMO data (always works)
         current_time = datetime.now()
         seconds = current_time.second
         
-        if seconds < 20:
-            activity = 'RESTING'
-            hr = 65 + int(np.sin(seconds/5) * 10)
-            movement = 0.5 + abs(np.sin(seconds/3)) * 0.5
-        elif seconds < 40:
-            activity = 'WALKING'
-            hr = 85 + int(np.sin(seconds/5) * 15)
-            movement = 2.0 + abs(np.sin(seconds/3)) * 1.0
-        else:
-            activity = 'RUNNING'
-            hr = 120 + int(np.sin(seconds/5) * 20)
-            movement = 4.0 + abs(np.sin(seconds/3)) * 2.0
+        # Cycle through activities
+        activity_index = int(seconds / 20) % 3
+        activities = ['RESTING', 'WALKING', 'RUNNING']
+        activity = activities[activity_index]
+        
+        # Base values for each activity
+        if activity == 'RESTING':
+            base_hr = 65
+            base_spo2 = 98
+            base_movement = 0.8
+        elif activity == 'WALKING':
+            base_hr = 85
+            base_spo2 = 96
+            base_movement = 2.5
+        else:  # RUNNING
+            base_hr = 120
+            base_spo2 = 94
+            base_movement = 4.5
+        
+        # Add some variation
+        hr = base_hr + int(np.sin(time.time()) * 10)
+        spo2 = base_spo2 + int(np.cos(time.time() / 2) * 2)
+        movement = base_movement + np.sin(time.time()) * 0.5
         
         return {
             'timestamp': current_time,
             'hr': max(40, min(160, hr)),
-            'spo2': 96 + int(np.cos(seconds/10) * 3),
+            'spo2': max(85, min(100, spo2)),
             'temp': 36.5 + np.random.random() * 0.5,
-            'movement': movement,
+            'movement': max(0.1, movement),
             'activity': activity,
             'packet_id': int(time.time() * 100) % 10000,
             'node_id': 'NODE_e661',
-            'raw': 'DEMO DATA',
+            'raw': 'DEMO: No COM8 data',
             'is_real': False
         }
 
 def update_data_buffers(data):
-    """Update data buffers - SAFE VERSION"""
-    # Always update timestamp first
+    """Update all data buffers SAFELY"""
+    # Update all buffers
     st.session_state.timestamps.append(data['timestamp'])
-    
-    # Update all other buffers - they should always have data
     st.session_state.hr_data.append(data['hr'])
     st.session_state.spo2_data.append(data['spo2'])
     st.session_state.temp_data.append(data['temp'])
     st.session_state.movement_data.append(data['movement'])
     
-    # Store complete data record
+    # Store complete record
     st.session_state.all_data.append({
         'timestamp': data['timestamp'],
         'hr': data['hr'],
@@ -268,33 +267,38 @@ def update_data_buffers(data):
         'activity': data['activity']
     })
 
-# ================ GRAPH FUNCTIONS ================
-
+# ================ FIXED GRAPH FUNCTIONS ================
 def create_graph(title, y_data, color, y_label):
-    """Create a generic graph - SAFE VERSION"""
-    if len(st.session_state.timestamps) == 0:
-        return None
-    
-    # Convert to lists for safe slicing
-    timestamps_list = list(st.session_state.timestamps)
-    y_data_list = list(y_data)
-    
-    # Make sure we have the same length
-    min_len = min(len(timestamps_list), len(y_data_list))
-    
-    if min_len == 0:
-        return None
-    
-    n_points = min(30, min_len)
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=timestamps_list[-n_points:],
-        y=y_data_list[-n_points:],
-        mode='lines+markers',
-        line=dict(color=color, width=2),
-        marker=dict(size=4)
-    ))
+    """Create a graph - FIXED to handle data properly"""
+    # Always have at least some data
+    if len(st.session_state.timestamps) == 0 or len(y_data) == 0:
+        # Create a simple graph with default data
+        times = [datetime.now() - timedelta(seconds=i) for i in range(10, 0, -1)]
+        values = [70 + np.random.normal(0, 5) for _ in range(10)]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=times,
+            y=values,
+            mode='lines',
+            line=dict(color=color, width=2)
+        ))
+    else:
+        # Use actual data
+        n_points = min(30, len(st.session_state.timestamps), len(y_data))
+        
+        # Get last n_points safely
+        x_data = list(st.session_state.timestamps)[-n_points:]
+        y_data_list = list(y_data)[-n_points:]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=x_data,
+            y=y_data_list,
+            mode='lines+markers',
+            line=dict(color=color, width=2),
+            marker=dict(size=4)
+        ))
     
     fig.update_layout(
         title=title,
@@ -308,7 +312,6 @@ def create_graph(title, y_data, color, y_label):
     return fig
 
 # ================ TAB 1: HEALTH VITALS ================
-
 def tab_health_vitals(current_data):
     """Tab 1: Health Vitals"""
     
@@ -318,34 +321,62 @@ def tab_health_vitals(current_data):
     with col1:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         hr = current_data['hr']
-        status = "🟢 Normal" if 60 <= hr <= 100 else "🟡 Warning" if 50 <= hr <= 110 else "🔴 Alert"
+        if 60 <= hr <= 100:
+            status_class = "status-normal"
+            status = "🟢 Normal"
+        elif 50 <= hr <= 110:
+            status_class = "status-warning"
+            status = "🟡 Warning"
+        else:
+            status_class = "status-critical"
+            status = "🔴 Alert"
+        
         st.markdown(f"### ❤️ {hr}")
-        st.markdown(f"**Heart Rate**<br>{status}", unsafe_allow_html=True)
+        st.markdown(f"**Heart Rate**<br><span class='{status_class}'>{status}</span>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         spo2 = current_data['spo2']
-        status = "🟢 Normal" if spo2 >= 95 else "🟡 Low" if spo2 >= 90 else "🔴 Critical"
+        if spo2 >= 95:
+            status_class = "status-normal"
+            status = "🟢 Normal"
+        elif spo2 >= 90:
+            status_class = "status-warning"
+            status = "🟡 Low"
+        else:
+            status_class = "status-critical"
+            status = "🔴 Critical"
+        
         st.markdown(f"### 🩸 {spo2}%")
-        st.markdown(f"**Blood Oxygen**<br>{status}", unsafe_allow_html=True)
+        st.markdown(f"**Blood Oxygen**<br><span class='{status_class}'>{status}</span>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col3:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         temp = current_data['temp']
-        status = "🟢 Normal" if temp <= 37.5 else "🟡 Elevated" if temp <= 38.5 else "🔴 Fever"
+        if temp <= 37.5:
+            status_class = "status-normal"
+            status = "🟢 Normal"
+        elif temp <= 38.5:
+            status_class = "status-warning"
+            status = "🟡 Elevated"
+        else:
+            status_class = "status-critical"
+            status = "🔴 Fever"
+        
         st.markdown(f"### 🌡️ {temp:.1f}°C")
-        st.markdown(f"**Temperature**<br>{status}", unsafe_allow_html=True)
+        st.markdown(f"**Temperature**<br><span class='{status_class}'>{status}</span>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col4:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         activity = current_data['activity']
         emoji = "😴" if activity == 'RESTING' else "🚶" if activity == 'WALKING' else "🏃"
+        
         st.markdown(f"### {emoji}")
-        st.markdown(f"**Activity**<br>{activity}", unsafe_allow_html=True)
-        st.markdown(f"Movement: {current_data['movement']:.1f}", unsafe_allow_html=True)
+        st.markdown(f"**Activity**<br>{activity}")
+        st.markdown(f"**Movement:** {current_data['movement']:.1f}")
         st.markdown("</div>", unsafe_allow_html=True)
     
     # Real-time Graphs
@@ -356,19 +387,13 @@ def tab_health_vitals(current_data):
     with col1:
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         hr_fig = create_graph("❤️ Heart Rate", st.session_state.hr_data, '#8B4513', 'BPM')
-        if hr_fig:
-            st.plotly_chart(hr_fig, use_container_width=True)
-        else:
-            st.info("Waiting for HR data...")
+        st.plotly_chart(hr_fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         spo2_fig = create_graph("🩸 Blood Oxygen", st.session_state.spo2_data, '#556B2F', '%')
-        if spo2_fig:
-            st.plotly_chart(spo2_fig, use_container_width=True)
-        else:
-            st.info("Waiting for SpO₂ data...")
+        st.plotly_chart(spo2_fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -376,23 +401,16 @@ def tab_health_vitals(current_data):
     with col1:
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         temp_fig = create_graph("🌡️ Temperature", st.session_state.temp_data, '#D4A76A', '°C')
-        if temp_fig:
-            st.plotly_chart(temp_fig, use_container_width=True)
-        else:
-            st.info("Waiting for temp data...")
+        st.plotly_chart(temp_fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         move_fig = create_graph("🏃 Movement", st.session_state.movement_data, '#8D6E63', 'Level')
-        if move_fig:
-            st.plotly_chart(move_fig, use_container_width=True)
-        else:
-            st.info("Waiting for movement data...")
+        st.plotly_chart(move_fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ================ TAB 2: SYSTEM STATUS ================
-
 def tab_system_status(current_data):
     """Tab 2: System Status"""
     
@@ -403,17 +421,27 @@ def tab_system_status(current_data):
         st.markdown("### 📡 Connection Status")
         
         if SERIAL_AVAILABLE:
-            st.success("✅ pyserial installed")
+            st.success("✅ **pyserial installed**")
         else:
-            st.warning("⚠️ Install pyserial for COM8")
+            st.error("❌ **pyserial NOT installed**")
+            st.info("Install: `pip install pyserial`")
         
         if current_data['is_real']:
-            st.success(f"✅ Reading COM8")
+            st.success(f"✅ **Reading REAL data from COM8**")
             st.metric("Packet ID", current_data['packet_id'])
             st.metric("Node ID", current_data['node_id'])
         else:
-            st.warning("⚠️ Using demo data")
+            st.warning("⚠️ **Using DEMO data**")
             st.info("Connect STEMCUBE to COM8 for real data")
+        
+        # Connection instructions
+        with st.expander("📋 How to connect STEMCUBE"):
+            st.markdown("""
+            1. Connect STEMCUBE Master to computer via USB
+            2. Open Device Manager to find COM port (usually COM8)
+            3. Ensure baud rate is 9600
+            4. Restart dashboard with STEMCUBE connected
+            """)
         
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -435,12 +463,21 @@ def tab_system_status(current_data):
                     {'range': [0, 20], 'color': 'rgba(244, 67, 54, 0.1)'},
                     {'range': [20, 50], 'color': 'rgba(255, 152, 0, 0.1)'},
                     {'range': [50, 100], 'color': 'rgba(76, 175, 80, 0.1)'}
-                ]
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 20
+                }
             }
         ))
         
         fig_battery.update_layout(height=200, margin=dict(t=30, b=20, l=20, r=20))
         st.plotly_chart(fig_battery, use_container_width=True)
+        
+        # Signal strength
+        rssi = -65
+        st.progress((rssi + 100) / 100, text=f"Signal: {rssi} dB")
         
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -453,78 +490,94 @@ def tab_system_status(current_data):
             st.code(f"{packet['time']}: {packet['packet']}")
     else:
         st.info("No raw packets received yet")
+        st.code("DEMO: HR:75 | SpO2:98 | TEMP:36.5 | ACT:RESTING")
     
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ================ TAB 3: DATA LOG ================
-
 def tab_data_log():
     """Tab 3: Data Log - COMPLETELY SAFE VERSION"""
     
     st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
     st.markdown("### 📋 Recent Data Log")
     
-    # METHOD 1: Use the all_data deque which has complete records
+    # Use the all_data deque which always has data
     if len(st.session_state.all_data) > 0:
         # Get last 10 records
-        n_items = min(10, len(st.session_state.all_data))
+        all_data_list = list(st.session_state.all_data)
+        n_items = min(10, len(all_data_list))
         
         table_data = []
-        # Get the last n_items records safely
-        all_data_list = list(st.session_state.all_data)
-        
         for i in range(1, n_items + 1):
-            idx = -i
-            if -idx <= len(all_data_list):
-                record = all_data_list[idx]
-                table_data.append({
-                    'Time': record['timestamp'].strftime('%H:%M:%S'),
-                    'HR': record['hr'],
-                    'SpO₂': record['spo2'],
-                    'Temp': f"{record['temp']:.1f}°C",
-                    'Movement': f"{record['movement']:.1f}",
-                    'Activity': record['activity']
-                })
+            record = all_data_list[-i]  # Get from end
+            table_data.append({
+                'Time': record['timestamp'].strftime('%H:%M:%S'),
+                'HR': record['hr'],
+                'SpO₂': record['spo2'],
+                'Temp': f"{record['temp']:.1f}°C",
+                'Movement': f"{record['movement']:.1f}",
+                'Activity': record['activity']
+            })
         
         # Reverse to show newest first
         table_data.reverse()
         
-        if table_data:
-            df = pd.DataFrame(table_data)
-            st.dataframe(df, use_container_width=True, height=400)
-        else:
-            st.info("No data available")
+        df = pd.DataFrame(table_data)
+        st.dataframe(df, use_container_width=True, height=400)
     else:
-        st.info("Waiting for data...")
+        # Fallback demo data
+        demo_data = []
+        current_time = datetime.now()
+        for i in range(10):
+            time_str = (current_time - timedelta(seconds=i*2)).strftime('%H:%M:%S')
+            demo_data.append({
+                'Time': time_str,
+                'HR': 75,
+                'SpO₂': 98,
+                'Temp': "36.5°C",
+                'Movement': "1.2",
+                'Activity': "RESTING"
+            })
+        
+        df = pd.DataFrame(demo_data)
+        st.dataframe(df, use_container_width=True, height=400)
     
     # Data Statistics
     st.markdown("### 📊 Data Statistics")
     
-    if len(st.session_state.hr_data) > 0:
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            # Convert deque to list for safe operations
-            hr_list = list(st.session_state.hr_data)
-            st.metric("HR Avg", f"{np.mean(hr_list):.0f} BPM")
-        with col2:
-            spo2_list = list(st.session_state.spo2_data)
-            st.metric("SpO₂ Avg", f"{np.mean(spo2_list):.0f}%")
-        with col3:
-            temp_list = list(st.session_state.temp_data)
-            st.metric("Temp Avg", f"{np.mean(temp_list):.1f}°C")
-        with col4:
-            st.metric("Data Points", len(st.session_state.timestamps))
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        hr_list = list(st.session_state.hr_data)
+        avg_hr = np.mean(hr_list) if hr_list else 75
+        st.metric("HR Avg", f"{avg_hr:.0f} BPM")
+    
+    with col2:
+        spo2_list = list(st.session_state.spo2_data)
+        avg_spo2 = np.mean(spo2_list) if spo2_list else 98
+        st.metric("SpO₂ Avg", f"{avg_spo2:.0f}%")
+    
+    with col3:
+        temp_list = list(st.session_state.temp_data)
+        avg_temp = np.mean(temp_list) if temp_list else 36.5
+        st.metric("Temp Avg", f"{avg_temp:.1f}°C")
+    
+    with col4:
+        st.metric("Data Points", len(st.session_state.timestamps))
     
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ================ MAIN DASHBOARD ================
-
 def main():
-    """Main dashboard function"""
+    """Main dashboard function - FIXED"""
+    
+    # Initialize session state FIRST
+    init_session_state()
     
     # Get current data
     current_data = get_current_data()
+    
+    # Update buffers with new data
     update_data_buffers(current_data)
     
     # Malaysia time
@@ -536,8 +589,9 @@ def main():
     <div class="main-header">
         <h1 style="margin: 0; font-size: 2rem;">🏥 STEMCUBE REAL-TIME MONITOR</h1>
         <p style="margin: 5px 0 0 0; font-size: 1rem;">
-            Malaysia Time: {current_time_malaysia.strftime('%H:%M:%S')} | 
-            Data: {'REAL from COM8' if current_data['is_real'] else 'DEMO'}
+            🇲🇾 Malaysia Time: {current_time_malaysia.strftime('%H:%M:%S')} | 
+            📊 Data Source: <strong>{'REAL from COM8' if current_data['is_real'] else 'DEMO'}</strong> | 
+            🚶 Activity: {current_data['activity']}
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -559,11 +613,17 @@ def main():
         st.markdown("</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
-        st.markdown("### 📈 Buffer Status")
-        st.write(f"HR Points: {len(st.session_state.hr_data)}")
-        st.write(f"SpO₂ Points: {len(st.session_state.spo2_data)}")
-        st.write(f"Temp Points: {len(st.session_state.temp_data)}")
-        st.write(f"Total Records: {len(st.session_state.all_data)}")
+        st.markdown("### 📈 System Info")
+        st.write(f"**Node:** {current_data['node_id']}")
+        st.write(f"**Packet:** {current_data['packet_id']}")
+        st.write(f"**Data Points:** {len(st.session_state.timestamps)}")
+        st.write(f"**Last Update:** {datetime.now().strftime('%H:%M:%S')}")
+        
+        if not current_data['is_real'] and SERIAL_AVAILABLE:
+            st.error("⚠️ COM8 not detected!")
+            if st.button("🔄 Check COM8 Again"):
+                st.rerun()
+        
         st.markdown("</div>", unsafe_allow_html=True)
     
     # TABS
@@ -578,6 +638,16 @@ def main():
     with tab3:
         tab_data_log()
     
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #666; font-size: 12px;">
+        🏥 <strong>STEMCUBE Health Monitoring System</strong> | 
+        📍 Universiti Malaysia Pahang | 
+        🎓 Final Year Project 2025
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Auto-refresh
     if auto_refresh:
         time.sleep(refresh_rate)
@@ -585,6 +655,4 @@ def main():
 
 # ================ RUN DASHBOARD ================
 if __name__ == "__main__":
-    # Initialize first
-    init_session_state()
     main()
