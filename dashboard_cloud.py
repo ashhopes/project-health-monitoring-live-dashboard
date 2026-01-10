@@ -1,8 +1,7 @@
-# dashboard_cloud.py - STREAMLIT CLOUD VERSION
+# dashboard_cloud.py - FIXED VERSION
 """
 Live Health Monitoring Dashboard with LoRa
 Streamlit Cloud Version - Direct STEMCUBE Connection
-NO Flask needed here - Flask only in local bridge
 """
 
 import streamlit as st
@@ -15,7 +14,6 @@ from datetime import datetime, timedelta
 import time
 import requests
 import json
-import os
 
 # ================ PAGE CONFIG ================
 st.set_page_config(
@@ -71,45 +69,15 @@ st.markdown("""
         text-align: center;
         font-size: 16px;
     }
-    
-    /* Card styling */
-    .vital-card {
-        background: white;
-        padding: 15px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 15px;
-        border-left: 5px solid;
-    }
-    
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #f8f9fa;
-        border-radius: 10px 10px 0px 0px;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #667eea;
-        color: white;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ================ INITIALIZE SESSION STATE ================
-# Initialize all session state variables
+# Initialize all session state variables with proper types
 if 'stemcube_data' not in st.session_state:
     st.session_state.stemcube_data = []
 if 'last_update' not in st.session_state:
-    st.session_state.last_update = datetime.now()
+    st.session_state.last_update = datetime.now()  # Store as datetime object
 if 'connection_status' not in st.session_state:
     st.session_state.connection_status = "simulated"
 if 'data_source' not in st.session_state:
@@ -119,6 +87,19 @@ if 'api_url' not in st.session_state:
 if 'refresh_counter' not in st.session_state:
     st.session_state.refresh_counter = 0
 
+# ================ HELPER FUNCTIONS ================
+def ensure_datetime(obj):
+    """Ensure object is datetime"""
+    if isinstance(obj, datetime):
+        return obj
+    elif isinstance(obj, str):
+        try:
+            return datetime.fromisoformat(obj.replace('Z', '+00:00'))
+        except:
+            return datetime.now()
+    else:
+        return datetime.now()
+
 # ================ SIMULATED DATA GENERATOR ================
 def generate_simulated_data(num_records=1):
     """Generate realistic simulated data"""
@@ -126,27 +107,27 @@ def generate_simulated_data(num_records=1):
     
     for i in range(num_records):
         # Base values with realistic variations
-        time_offset = st.session_state.refresh_counter * 3  # 3 seconds per refresh
+        time_offset = st.session_state.refresh_counter * 3
         
-        # Heart Rate with natural variation
+        # Heart Rate
         hr_base = 72
         hr_variation = np.sin(time_offset/10) * 6 + np.random.normal(0, 1.5)
         hr = max(60, min(110, hr_base + hr_variation))
         
-        # SpO2 with slight variations
+        # SpO2
         spo2 = max(94, min(99, 97 + np.random.normal(0, 0.5)))
         
-        # Temperature with daily rhythm
+        # Temperature
         temp_base = 36.5
         temp_variation = np.sin(time_offset/30) * 0.1 + np.random.normal(0, 0.03)
         temp = max(36.0, min(37.2, temp_base + temp_variation))
         
-        # Activity simulation
+        # Activity
         activity_cycle = time_offset % 60
         if activity_cycle < 40:
             activity = "RESTING"
             ax, ay, az = np.random.normal(0, 0.05, 3)
-            az += 1.0  # gravity
+            az += 1.0
         elif activity_cycle < 55:
             activity = "WALKING"
             ax = np.sin(time_offset/3) * 0.2 + np.random.normal(0, 0.1)
@@ -167,9 +148,6 @@ def generate_simulated_data(num_records=1):
             'ax': float(ax),
             'ay': float(ay),
             'az': float(az),
-            'gx': float(np.random.normal(0, 0.2)),
-            'gy': float(np.random.normal(0, 0.2)),
-            'gz': float(np.random.normal(0, 0.2)),
             'activity': activity,
             'packet_id': 1000 + st.session_state.refresh_counter,
             'battery_level': np.random.uniform(75, 95),
@@ -186,7 +164,7 @@ def get_data_from_bridge(api_url=""):
         return None
     
     try:
-        response = requests.get(api_url, timeout=5)
+        response = requests.get(api_url, timeout=3)
         
         if response.status_code == 200:
             data = response.json()
@@ -205,8 +183,7 @@ def get_data_from_bridge(api_url=""):
                 
         return None
         
-    except Exception as e:
-        # Silent fail - return None
+    except Exception:
         return None
 
 # ================ HEADER SECTION ================
@@ -218,7 +195,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Status row
+# Status row - FIXED: Ensure last_update is datetime
 col_status1, col_status2, col_status3 = st.columns([1, 1, 1])
 
 with col_status1:
@@ -242,8 +219,10 @@ with col_status2:
     )
 
 with col_status3:
-    # Last update
-    time_diff = (datetime.now() - st.session_state.last_update).total_seconds()
+    # Last update - FIXED: Ensure last_update is datetime before calculation
+    last_update_dt = ensure_datetime(st.session_state.last_update)
+    time_diff = (datetime.now() - last_update_dt).total_seconds()
+    
     if time_diff < 10:
         st.metric("Last Update", f"{time_diff:.1f}s ago", delta="Receiving")
     else:
@@ -271,10 +250,6 @@ with st.sidebar:
             key="api_url_input"
         )
         
-        # Help text
-        st.caption("💡 Run bridge_api.py on your PC first")
-        st.caption("🌐 Use ngrok for internet access")
-        
         col_test1, col_test2 = st.columns(2)
         with col_test1:
             if st.button("🔗 Test Connection", use_container_width=True, key="test_conn"):
@@ -284,6 +259,7 @@ with st.sidebar:
                         st.success("✅ Connected!")
                         st.session_state.api_url = api_url
                         st.session_state.connection_status = "connected"
+                        st.session_state.last_update = datetime.now()
                     else:
                         st.error("❌ Connection failed")
                         st.session_state.connection_status = "disconnected"
@@ -291,6 +267,7 @@ with st.sidebar:
         with col_test2:
             if st.button("🔄 Use Simulated", use_container_width=True, key="use_sim"):
                 st.session_state.connection_status = "simulated"
+                st.session_state.last_update = datetime.now()
                 st.success("Switched to simulated data")
     
     # Device Selection
@@ -321,13 +298,12 @@ with st.sidebar:
         if st.button("🗑️ Clear Data", use_container_width=True, key="clear_btn"):
             st.session_state.stemcube_data = []
             st.session_state.refresh_counter = 0
+            st.session_state.last_update = datetime.now()
             st.success("Data cleared!")
             st.rerun()
     
     # Manual Data Entry
     with st.expander("🧪 Manual Data Entry", expanded=False):
-        st.caption("Add test data manually")
-        
         col_man1, col_man2, col_man3 = st.columns(3)
         with col_man1:
             manual_hr = st.number_input("HR (BPM)", 60, 120, 72, key="manual_hr")
@@ -358,7 +334,7 @@ with st.sidebar:
             st.session_state.stemcube_data.append(manual_data)
             st.session_state.last_update = datetime.now()
             st.session_state.data_source = "manual"
-            st.success(f"Added manual data: HR={manual_hr}, SpO₂={manual_spo2}")
+            st.success(f"Added manual data!")
             st.rerun()
     
     # System Info
@@ -372,7 +348,6 @@ with st.sidebar:
         if data_count > 0:
             latest = st.session_state.stemcube_data[-1]
             st.metric("Latest HR", f"{latest.get('hr', 0):.0f} BPM")
-            st.metric("Battery", f"{latest.get('battery_level', 75):.0f}%")
     
     st.markdown("---")
     st.caption("🌙 Project by mOONbLOOM26")
@@ -386,8 +361,7 @@ st.session_state.refresh_counter += 1
 
 if connection_mode == "🔗 Local Bridge API" and st.session_state.api_url:
     # Try to get data from bridge
-    with st.spinner("Fetching data from STEMCUBE..."):
-        current_data = get_data_from_bridge(st.session_state.api_url)
+    current_data = get_data_from_bridge(st.session_state.api_url)
     
     if current_data:
         st.session_state.connection_status = "connected"
@@ -400,11 +374,7 @@ if connection_mode == "🔗 Local Bridge API" and st.session_state.api_url:
             if current_packet_id not in existing_ids:
                 st.session_state.stemcube_data.append(current_data)
         else:
-            # Add by timestamp
-            current_time = current_data.get('timestamp', datetime.now().isoformat())
-            if len(st.session_state.stemcube_data) == 0 or \
-               st.session_state.stemcube_data[-1].get('timestamp') != current_time:
-                st.session_state.stemcube_data.append(current_data)
+            st.session_state.stemcube_data.append(current_data)
         
         st.session_state.last_update = datetime.now()
         
@@ -413,6 +383,7 @@ if connection_mode == "🔗 Local Bridge API" and st.session_state.api_url:
         st.session_state.connection_status = "disconnected"
         current_data = generate_simulated_data(1)[0]
         current_data['data_source'] = 'simulated_fallback'
+        st.session_state.last_update = datetime.now()
         
 else:
     # Use simulated data
@@ -445,46 +416,24 @@ else:
     latest = {}
 
 # ================ MAIN DASHBOARD TABS ================
-tab1, tab2, tab3 = st.tabs(["🩺 Live Vitals", "📈 Trends", "📊 Export & Logs"])
+tab1, tab2, tab3 = st.tabs(["🩺 Live Vitals", "📈 Trends", "📊 Data & Export"])
 
 with tab1:
     # Top row: Key metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        # Heart Rate Card
+        # Heart Rate
         hr = latest.get('hr', 72)
         hr_status = "Normal" if 60 <= hr <= 100 else "High" if hr > 100 else "Low"
         hr_color = "#28a745" if hr_status == "Normal" else "#dc3545"
         
-        st.markdown(f"""
-        <div class="vital-card" style="border-left-color: {hr_color};">
-            <div style="text-align: center;">
-                <h3 style="color: {hr_color}; margin-bottom: 10px;">❤️ Heart Rate</h3>
-                <h1 style="color: {hr_color}; margin: 0;">{hr:.0f} BPM</h1>
-                <p style="color: #6c757d; margin-top: 5px;">{hr_status}</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # HR mini chart
-        if 'hr' in df.columns and len(df) > 1:
-            fig_hr = go.Figure()
-            fig_hr.add_trace(go.Scatter(
-                x=df['timestamp'].tail(15),
-                y=df['hr'].tail(15),
-                mode='lines',
-                line=dict(color=hr_color, width=3)
-            ))
-            fig_hr.update_layout(
-                height=120,
-                margin=dict(t=0, b=0, l=0, r=0),
-                showlegend=False,
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(showgrid=False, showticklabels=False),
-                yaxis=dict(showgrid=False, showticklabels=False)
-            )
-            st.plotly_chart(fig_hr, use_container_width=True, config={'displayModeBar': False})
+        st.metric(
+            "❤️ Heart Rate",
+            f"{hr:.0f} BPM",
+            hr_status,
+            delta_color="normal" if hr_status == "Normal" else "inverse"
+        )
     
     with col2:
         # SpO2 Gauge
@@ -501,84 +450,50 @@ with tab1:
             domain={'x': [0, 1], 'y': [0, 1]},
             gauge={
                 'axis': {'range': [85, 100], 'tickwidth': 1},
-                'bar': {'color': spo2_color, 'thickness': 0.6},
+                'bar': {'color': spo2_color},
                 'steps': [
                     {'range': [85, 90], 'color': 'rgba(220, 53, 69, 0.1)'},
                     {'range': [90, 95], 'color': 'rgba(255, 193, 7, 0.1)'},
                     {'range': [95, 100], 'color': 'rgba(40, 167, 69, 0.1)'}
-                ],
-                'threshold': {
-                    'line': {'color': spo2_color, 'width': 4},
-                    'thickness': 0.8,
-                    'value': spo2
-                }
+                ]
             }
         ))
-        fig_spo2.update_layout(
-            height=220, 
-            margin=dict(t=20, b=20, l=20, r=20)
-        )
+        fig_spo2.update_layout(height=220, margin=dict(t=20, b=20))
         st.plotly_chart(fig_spo2, use_container_width=True, config={'displayModeBar': False})
     
     with col3:
-        # Temperature Card
+        # Temperature
         temp = latest.get('temp', 36.5)
         temp_status = "Normal" if 36 <= temp <= 37.5 else "Fever" if temp > 37.5 else "Low"
         temp_color = "#28a745" if temp_status == "Normal" else "#dc3545"
         
-        st.markdown(f"""
-        <div class="vital-card" style="border-left-color: {temp_color};">
-            <div style="text-align: center;">
-                <h3 style="color: {temp_color}; margin-bottom: 10px;">🌡️ Temperature</h3>
-                <h1 style="color: {temp_color}; margin: 0;">{temp:.1f} °C</h1>
-                <p style="color: #6c757d; margin-top: 5px;">{temp_status}</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Temp mini chart
-        if 'temp' in df.columns and len(df) > 1:
-            fig_temp = go.Figure()
-            fig_temp.add_trace(go.Scatter(
-                x=df['timestamp'].tail(15),
-                y=df['temp'].tail(15),
-                mode='lines',
-                line=dict(color=temp_color, width=3)
-            ))
-            fig_temp.add_hline(y=37.5, line_dash="dash", line_color="#dc3545", opacity=0.3)
-            fig_temp.update_layout(
-                height=120,
-                margin=dict(t=0, b=0, l=0, r=0),
-                showlegend=False,
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(showgrid=False, showticklabels=False),
-                yaxis=dict(showgrid=False, showticklabels=False)
-            )
-            st.plotly_chart(fig_temp, use_container_width=True, config={'displayModeBar': False})
+        st.metric(
+            "🌡️ Temperature",
+            f"{temp:.1f} °C",
+            temp_status,
+            delta_color="normal" if temp_status == "Normal" else "inverse"
+        )
     
     with col4:
-        # Activity Card
+        # Activity
         activity = latest.get('activity', 'UNKNOWN')
         activity_info = {
-            'RESTING': {'emoji': '😴', 'color': '#6c757d', 'desc': 'At Rest'},
-            'WALKING': {'emoji': '🚶', 'color': '#17a2b8', 'desc': 'Walking'},
-            'ACTIVE': {'emoji': '🏃', 'color': '#28a745', 'desc': 'Active'},
-            'MANUAL': {'emoji': '✍️', 'color': '#ffc107', 'desc': 'Manual Entry'},
-            'UNKNOWN': {'emoji': '❓', 'color': '#dc3545', 'desc': 'Unknown'}
-        }.get(activity, {'emoji': '❓', 'color': '#dc3545', 'desc': 'Unknown'})
+            'RESTING': {'emoji': '😴', 'color': '#6c757d'},
+            'WALKING': {'emoji': '🚶', 'color': '#17a2b8'},
+            'ACTIVE': {'emoji': '🏃', 'color': '#28a745'},
+            'UNKNOWN': {'emoji': '❓', 'color': '#dc3545'}
+        }.get(activity, {'emoji': '❓', 'color': '#dc3545'})
         
         st.markdown(f"""
-        <div class="vital-card" style="border-left-color: {activity_info['color']};">
-            <div style="text-align: center;">
-                <h3 style="color: {activity_info['color']}; margin-bottom: 10px;">Activity Status</h3>
-                <div style="font-size: 48px; margin: 5px 0;">{activity_info['emoji']}</div>
-                <h2 style="color: {activity_info['color']}; margin: 5px 0;">{activity}</h2>
-                <p style="color: #6c757d; margin: 0;">{activity_info['desc']}</p>
-            </div>
+        <div style='text-align: center; padding: 15px; border-radius: 10px; 
+                    background: {activity_info['color']}15; border: 2px solid {activity_info['color']};'>
+            <h4 style='color: {activity_info['color']};'>Activity</h4>
+            <div style='font-size: 48px;'>{activity_info['emoji']}</div>
+            <h3 style='color: {activity_info['color']};'>{activity}</h3>
         </div>
         """, unsafe_allow_html=True)
     
-    # Motion Sensors Section
+    # Motion Sensors
     st.subheader("📡 Motion Sensors")
     motion_cols = st.columns(6)
     
@@ -599,7 +514,7 @@ with tab1:
     # Recent Data Table
     st.subheader("📋 Recent Readings")
     if not df.empty:
-        display_cols = ['timestamp', 'hr', 'spo2', 'temp', 'activity', 'data_source']
+        display_cols = ['timestamp', 'hr', 'spo2', 'temp', 'activity']
         available_cols = [col for col in display_cols if col in df.columns]
         
         display_df = df[available_cols].tail(8).copy()
@@ -607,20 +522,9 @@ with tab1:
         if 'timestamp' in display_df.columns:
             display_df['timestamp'] = display_df['timestamp'].dt.strftime("%H:%M:%S")
         
-        # Style the dataframe
-        st.dataframe(
-            display_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "hr": st.column_config.NumberColumn("HR", format="%d BPM"),
-                "spo2": st.column_config.NumberColumn("SpO₂", format="%d%%"),
-                "temp": st.column_config.NumberColumn("Temp", format="%.1f °C"),
-                "data_source": st.column_config.TextColumn("Source")
-            }
-        )
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
     else:
-        st.info("No data available yet. Start collecting data!")
+        st.info("No data available yet.")
 
 with tab2:
     st.subheader("📈 Vital Signs Trends")
@@ -629,112 +533,53 @@ with tab2:
         # Create trend charts
         fig = make_subplots(
             rows=2, cols=2,
-            subplot_titles=('Heart Rate Trend', 'SpO₂ Trend', 'Temperature Trend', 'Motion Trend'),
-            vertical_spacing=0.15,
-            horizontal_spacing=0.1
+            subplot_titles=('Heart Rate', 'SpO₂', 'Temperature', 'Motion'),
+            vertical_spacing=0.15
         )
         
         # Heart Rate
         if 'hr' in df.columns:
             fig.add_trace(
                 go.Scatter(x=df['timestamp'], y=df['hr'], 
-                          mode='lines', name='HR', line=dict(color='#FF6B6B', width=3)),
+                          mode='lines', name='HR', line=dict(color='#FF6B6B', width=2)),
                 row=1, col=1
             )
-            fig.add_hline(y=100, line_dash="dash", line_color="orange", opacity=0.5, row=1, col=1)
-            fig.add_hline(y=60, line_dash="dash", line_color="orange", opacity=0.5, row=1, col=1)
-            fig.add_hrect(y0=60, y1=100, fillcolor="green", opacity=0.1, row=1, col=1)
         
         # SpO2
         if 'spo2' in df.columns:
             fig.add_trace(
                 go.Scatter(x=df['timestamp'], y=df['spo2'],
-                          mode='lines', name='SpO₂', line=dict(color='#36A2EB', width=3)),
+                          mode='lines', name='SpO₂', line=dict(color='#36A2EB', width=2)),
                 row=1, col=2
             )
-            fig.add_hline(y=95, line_dash="dash", line_color="red", opacity=0.5, row=1, col=2)
-            fig.add_hrect(y0=95, y1=100, fillcolor="green", opacity=0.1, row=1, col=2)
         
         # Temperature
         if 'temp' in df.columns:
             fig.add_trace(
                 go.Scatter(x=df['timestamp'], y=df['temp'],
-                          mode='lines', name='Temp', line=dict(color='#FFA726', width=3)),
+                          mode='lines', name='Temp', line=dict(color='#FFA726', width=2)),
                 row=2, col=1
             )
-            fig.add_hline(y=37.5, line_dash="dash", line_color="red", opacity=0.5, row=2, col=1)
-            fig.add_hrect(y0=36, y1=37.5, fillcolor="green", opacity=0.1, row=2, col=1)
         
         # Motion magnitude
         if all(col in df.columns for col in ['ax', 'ay', 'az']):
             df['motion_mag'] = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
             fig.add_trace(
                 go.Scatter(x=df['timestamp'], y=df['motion_mag'],
-                          mode='lines', name='Motion', line=dict(color='#4BC0C0', width=3)),
+                          mode='lines', name='Motion', line=dict(color='#4BC0C0', width=2)),
                 row=2, col=2
             )
         
-        fig.update_layout(
-            height=500, 
-            showlegend=True,
-            template="plotly_white"
-        )
+        fig.update_layout(height=500, showlegend=True)
         st.plotly_chart(fig, use_container_width=True)
-        
-        # Statistics Cards
-        st.subheader("📊 Statistics Summary")
-        stat_cols = st.columns(4)
-        
-        stats_data = []
-        if 'hr' in df.columns:
-            hr_data = df['hr'].dropna()
-            if not hr_data.empty:
-                stats_data.append(("Heart Rate", f"{hr_data.mean():.1f} BPM", f"{hr_data.min():.0f}-{hr_data.max():.0f}"))
-        
-        if 'spo2' in df.columns:
-            spo2_data = df['spo2'].dropna()
-            if not spo2_data.empty:
-                stats_data.append(("SpO₂", f"{spo2_data.mean():.1f}%", f"{spo2_data.min():.0f}-{spo2_data.max():.0f}"))
-        
-        if 'temp' in df.columns:
-            temp_data = df['temp'].dropna()
-            if not temp_data.empty:
-                stats_data.append(("Temperature", f"{temp_data.mean():.1f}°C", f"{temp_data.min():.1f}-{temp_data.max():.1f}"))
-        
-        stats_data.append(("Data Points", str(len(df)), f"{display_samples} max"))
-        
-        for col, (title, value, range_text) in zip(stat_cols, stats_data):
-            with col:
-                st.metric(title, value)
-                st.caption(f"Range: {range_text}")
-    
     else:
-        st.info("Collect more data to see trends! Currently have {} data points.".format(len(df)))
+        st.info("Collect more data to see trends!")
 
 with tab3:
-    st.subheader("📥 Data Export & System Logs")
+    st.subheader("📥 Data Export")
     
     if not df.empty:
-        # Data Summary
-        col_sum1, col_sum2, col_sum3 = st.columns(3)
-        
-        with col_sum1:
-            st.metric("Total Records", len(df))
-            time_range_min = (df['timestamp'].max() - df['timestamp'].min()).total_seconds() / 60
-            st.caption(f"Time range: {time_range_min:.1f} minutes")
-        
-        with col_sum2:
-            data_sources = df['data_source'].unique() if 'data_source' in df.columns else ['unknown']
-            st.metric("Data Sources", len(data_sources))
-            st.caption(", ".join(data_sources))
-        
-        with col_sum3:
-            st.metric("Current Status", st.session_state.connection_status.upper())
-            st.caption(f"Last update: {st.session_state.last_update.strftime('%H:%M:%S')}")
-        
         # Export Options
-        st.subheader("Export Data")
-        
         col_exp1, col_exp2 = st.columns(2)
         
         with col_exp1:
@@ -751,7 +596,7 @@ with tab3:
         
         with col_exp2:
             # JSON Export
-            json_data = df.to_json(orient='records', indent=2, date_format='iso')
+            json_data = df.to_json(orient='records', indent=2)
             st.download_button(
                 label="📊 Download JSON",
                 data=json_data,
@@ -761,60 +606,26 @@ with tab3:
             )
         
         # Data Preview
-        with st.expander("🔍 View All Data", expanded=False):
+        with st.expander("🔍 View Data"):
             st.dataframe(df, use_container_width=True)
-        
-        # Connection Logs
-        st.subheader("🔌 Connection Logs")
-        
-        log_data = []
-        if st.session_state.stemcube_data:
-            for i, data in enumerate(st.session_state.stemcube_data[-10:]):
-                timestamp = data.get('timestamp', 'Unknown')
-                if isinstance(timestamp, str):
-                    try:
-                        ts = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                        time_str = ts.strftime("%H:%M:%S")
-                    except:
-                        time_str = timestamp
-                else:
-                    time_str = str(timestamp)
-                
-                log_data.append({
-                    "Time": time_str,
-                    "HR": data.get('hr', 'N/A'),
-                    "SpO₂": data.get('spo2', 'N/A'),
-                    "Source": data.get('data_source', 'N/A'),
-                    "Activity": data.get('activity', 'N/A')
-                })
-        
-        if log_data:
-            log_df = pd.DataFrame(log_data)
-            st.table(log_df)
-        else:
-            st.info("No connection logs available")
     
     else:
         st.warning("No data available for export")
     
-    # System Info
+    # Connection Info
     st.markdown("---")
-    st.markdown("### ℹ️ System Information")
+    st.markdown("### 🔌 Connection Info")
     
     info_cols = st.columns(2)
     with info_cols[0]:
-        st.write("**Dashboard Info:**")
-        st.write(f"- Version: 2.0")
-        st.write(f"- Streamlit Cloud: Yes")
-        st.write(f"- Auto-refresh: {refresh_rate}s")
-        st.write(f"- Max samples: {display_samples}")
+        st.write("**Status:**", st.session_state.connection_status.upper())
+        st.write("**Data Source:**", st.session_state.data_source.upper())
+        st.write("**Data Points:**", len(st.session_state.stemcube_data))
     
     with info_cols[1]:
-        st.write("**Current Session:**")
-        st.write(f"- Data points: {len(st.session_state.stemcube_data)}")
-        st.write(f"- Connection: {st.session_state.connection_status}")
-        st.write(f"- Source: {st.session_state.data_source}")
-        st.write(f"- Refresh count: {st.session_state.refresh_counter}")
+        st.write("**Refresh Rate:**", f"{refresh_rate} seconds")
+        st.write("**Display Samples:**", display_samples)
+        st.write("**Last Update:**", st.session_state.last_update.strftime('%H:%M:%S'))
 
 # ================ AUTO REFRESH ================
 if refresh_rate > 0:
@@ -825,12 +636,9 @@ if refresh_rate > 0:
 st.markdown("---")
 st.markdown(f"""
 <div style='text-align: center; color: #6c757d; padding: 20px;'>
-    <p>🏥 STEMCUBE Real-Time Health Monitoring System • v2.0</p>
-    <p>Status: <strong>{st.session_state.connection_status.upper()}</strong> • 
-       Source: <strong>{st.session_state.data_source.upper()}</strong> • 
-       Auto-refresh: <strong>{refresh_rate}s</strong></p>
-    <p>Last Update: {st.session_state.last_update.strftime('%H:%M:%S')} • 
-       Data Points: {len(st.session_state.stemcube_data)}</p>
-    <p>🌙 Project by mOONbLOOM26 • Streamlit Cloud Deployment</p>
+    <p>🏥 STEMCUBE Real-Time Health Monitoring System</p>
+    <p>Status: {st.session_state.connection_status.upper()} • 
+       Data Points: {len(st.session_state.stemcube_data)} • 
+       Auto-refresh: {refresh_rate}s</p>
 </div>
-""", unsafe_allow_html=True)# ================ IMPORTS ================
+""", unsafe_allow_html=True)
