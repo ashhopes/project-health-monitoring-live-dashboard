@@ -602,4 +602,4 @@ except Exception as e:
     
     with st.expander("Debug Information"):
         st.write(f"Error details: {str(e)}")
-        st.write(f"Error type: {type(e).__name__}")S
+        st.write(f"Error type: {type(e).__name__}")
