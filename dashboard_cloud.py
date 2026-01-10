@@ -1,8 +1,7 @@
-# dashboard_cloud.py - FIXED VERSION (NO AUTHENTICATION)
+# dashboard_cloud.py - STREAMLIT CLOUD VERSION (FIXED)
 """
 REAL-TIME DASHBOARD FOR STREAMLIT CLOUD
 MUJI MARROON CHAMPAGNE OLIVE THEME
-READS REAL DATA FROM STEMCUBE MASTER VIA COM8
 """
 
 import streamlit as st
@@ -14,7 +13,16 @@ from datetime import datetime, timedelta
 import time
 import json
 import pytz
-import serial
+import os
+import sys
+
+# ================ TRY TO IMPORT SERIAL ================
+try:
+    import serial
+    SERIAL_AVAILABLE = True
+except ImportError:
+    SERIAL_AVAILABLE = False
+    st.warning("⚠️ pyserial not installed. Using demo data.")
 
 # ================ PAGE CONFIG ================
 st.set_page_config(
@@ -228,38 +236,35 @@ st.markdown("""
         margin-top: 30px;
         text-align: center;
     }
-    
-    /* SIMPLIFIED STYLES FOR DEBUGGING */
-    .debug-info {
-        background: #f0f0f0;
-        padding: 10px;
-        border-radius: 5px;
-        margin: 10px 0;
-        font-family: monospace;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# ================ SIMPLIFIED DATA LOADING ================
+# ================ ACTIVITY EMOJIS ================
+ACTIVITY_CONFIG = {
+    'RESTING': {'emoji': '😴', 'color': '#8B4513', 'description': 'Patient is resting'},
+    'WALKING': {'emoji': '🚶', 'color': '#556B2F', 'description': 'Patient is walking'},
+    'RUNNING': {'emoji': '🏃', 'color': '#D4A76A', 'description': 'Patient is running'}
+}
 
-def get_sample_data():
-    """Always return sample data for testing"""
+# ================ GENERATE DEMO DATA ================
+def generate_demo_data():
+    """Generate demo data for Streamlit Cloud"""
     malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
     current_time = datetime.now(malaysia_tz)
     
-    # Cycle activities
+    # Cycle through activities
     activities = ['RESTING', 'WALKING', 'RUNNING']
-    activity_idx = int(current_time.second / 20) % 3
+    activity_idx = int(current_time.minute / 20) % 3
     
-    sample_data = {
+    data = {
         'status': 'connected',
         'last_update': current_time.isoformat(),
         'is_real_data': False,
-        'activity_source': 'DEMO',
+        'activity_source': 'DEMO_CLOUD',
         'malaysia_time': current_time.strftime('%H:%M:%S'),
         
         'data': {
-            'node_id': 'NODE_e661',
+            'node_id': 'NODE_CLOUD',
             'timestamp': current_time.isoformat(),
             'malaysia_time': current_time.strftime('%H:%M:%S'),
             'hr': 65 if activity_idx == 0 else 85 if activity_idx == 1 else 120,
@@ -279,80 +284,53 @@ def get_sample_data():
             'snr': 12,
             'packet_id': int(current_time.timestamp()) % 10000,
             'packet_loss': 2.5,
-            'is_real': False,
-            'raw_packet': 'Demo data - Dashboard is working!'
+            'is_real': False
         }
     }
     
-    return sample_data
+    return data
 
-# ================ SIMPLE DASHBOARD COMPONENTS ================
-
-def display_header():
-    """Display the main header"""
-    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
-    current_time_malaysia = datetime.now(malaysia_tz)
-    
-    st.markdown(f"""
-    <div class="main-header">
-        <h1 style="margin: 0; font-size: 2.5rem;">🏥 STEMCUBE Health Monitor</h1>
-        <p style="margin: 10px 0 0 0; font-size: 1.1rem; opacity: 0.9;">
-            Real-time Patient Monitoring • LoRa Wireless • Malaysia Time: {current_time_malaysia.strftime('%H:%M:%S')}
-        </p>
-        <p style="margin: 5px 0 0 0; font-size: 0.9rem; opacity: 0.8;">
-            Universiti Malaysia Pahang • Final Year Project 2025
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-def display_activity(activity):
-    """Display activity with emoji"""
-    emoji_map = {
-        'RESTING': '😴',
-        'WALKING': '🚶',
-        'RUNNING': '🏃',
-        'UNKNOWN': '🤔'
-    }
-    
-    color_map = {
-        'RESTING': '#8B4513',
-        'WALKING': '#556B2F',
-        'RUNNING': '#D4A76A',
-        'UNKNOWN': '#8D6E63'
-    }
-    
-    emoji = emoji_map.get(activity.upper(), '🤔')
-    color = color_map.get(activity.upper(), '#8D6E63')
+# ================ DISPLAY ACTIVITY ================
+def display_activity_with_emoji(activity):
+    """Display activity with animated emoji"""
+    config = ACTIVITY_CONFIG.get(activity.upper(), ACTIVITY_CONFIG['RESTING'])
     
     st.markdown(f"""
     <div class="activity-emoji-container">
-        <div class="activity-emoji">{emoji}</div>
-        <h2 style="color: {color}; margin: 10px 0;">{activity}</h2>
-        <p style="color: #666; font-size: 16px;">Patient is {activity.lower()}</p>
+        <div class="activity-emoji">{config['emoji']}</div>
+        <h2 style="color: {config['color']}; margin: 10px 0;">{activity}</h2>
+        <p style="color: #666; font-size: 16px;">{config['description']}</p>
     </div>
     """, unsafe_allow_html=True)
 
-def display_vitals(data):
-    """Display vital signs"""
-    st.markdown("### 🩺 Vital Signs")
+# ================ TAB 1: HEALTH VITALS ================
+def tab_health_vitals(data):
+    """Tab 1: Health Vitals Display"""
+    current = data['data']
     
+    st.markdown("### 🩺 Health Vitals")
+    
+    # Activity Display
+    display_activity_with_emoji(current.get('activity', 'RESTING'))
+    
+    # Vital Signs in columns
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("<div class='vital-card'>", unsafe_allow_html=True)
-        hr = data['data']['hr']
+        hr = current['hr']
         
-        # Heart rate status
+        # Determine status
         if hr < 60:
-            status = "status-warning"
+            status_class = "status-warning"
             status_text = "LOW"
             color = "#FF9800"
         elif hr <= 100:
-            status = "status-normal"
+            status_class = "status-normal"
             status_text = "NORMAL"
             color = "#4CAF50"
         else:
-            status = "status-critical"
+            status_class = "status-critical"
             status_text = "HIGH"
             color = "#F44336"
         
@@ -362,26 +340,26 @@ def display_vitals(data):
             <div class="metric-value" style="color: {color};">{hr}</div>
             <div>BPM</div>
             <br>
-            <div class="{status}">{status_text}</div>
+            <div class="{status_class}">{status_text}</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<div class='vital-card'>", unsafe_allow_html=True)
-        spo2 = data['data']['spo2']
+        spo2 = current['spo2']
         
         # SpO2 status
         if spo2 >= 95:
-            status = "status-normal"
+            status_class = "status-normal"
             status_text = "NORMAL"
             color = "#4CAF50"
         elif spo2 >= 90:
-            status = "status-warning"
+            status_class = "status-warning"
             status_text = "LOW"
             color = "#FF9800"
         else:
-            status = "status-critical"
+            status_class = "status-critical"
             status_text = "CRITICAL"
             color = "#F44336"
         
@@ -391,26 +369,26 @@ def display_vitals(data):
             <div class="metric-value" style="color: {color};">{spo2}</div>
             <div>% SpO₂</div>
             <br>
-            <div class="{status}">{status_text}</div>
+            <div class="{status_class}">{status_text}</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col3:
         st.markdown("<div class='vital-card'>", unsafe_allow_html=True)
-        temp = data['data']['temp']
+        temp = current['temp']
         
         # Temperature status
         if temp <= 37.5:
-            status = "status-normal"
+            status_class = "status-normal"
             status_text = "NORMAL"
             color = "#4CAF50"
         elif temp <= 38.0:
-            status = "status-warning"
+            status_class = "status-warning"
             status_text = "ELEVATED"
             color = "#FF9800"
         else:
-            status = "status-critical"
+            status_class = "status-critical"
             status_text = "FEVER"
             color = "#F44336"
         
@@ -420,157 +398,162 @@ def display_vitals(data):
             <div class="metric-value" style="color: {color};">{temp}</div>
             <div>°C</div>
             <br>
-            <div class="{status}">{status_text}</div>
+            <div class="{status_class}">{status_text}</div>
         </div>
         """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-def display_data_table(data):
-    """Display data table"""
-    st.markdown("### 📋 Live Data Stream")
+# ================ TAB 2: SYSTEM STATUS ================
+def tab_system_status(data):
+    """Tab 2: System Status"""
+    current = data['data']
     
-    # Create table data
+    st.markdown("### 📡 System Status")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Battery Status
+        st.markdown("<div class='system-card'>", unsafe_allow_html=True)
+        st.markdown("#### 🔋 Battery")
+        battery = current.get('battery', 85)
+        
+        fig_battery = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=battery,
+            title={'text': "Battery Level", 'font': {'size': 14}},
+            number={'suffix': "%", 'font': {'size': 28}},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': '#4CAF50' if battery > 50 else '#FF9800' if battery > 20 else '#F44336'},
+                'steps': [
+                    {'range': [0, 20], 'color': 'rgba(244, 67, 54, 0.1)'},
+                    {'range': [20, 50], 'color': 'rgba(255, 152, 0, 0.1)'},
+                    {'range': [50, 100], 'color': 'rgba(76, 175, 80, 0.1)'}
+                ]
+            }
+        ))
+        
+        fig_battery.update_layout(height=200, margin=dict(t=30, b=20, l=20, r=20))
+        st.plotly_chart(fig_battery, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col2:
+        # Signal Status
+        st.markdown("<div class='system-card'>", unsafe_allow_html=True)
+        st.markdown("#### 📶 Signal Strength")
+        rssi = current.get('rssi', -65)
+        
+        st.metric("RSSI", f"{rssi} dB")
+        st.metric("SNR", f"{current.get('snr', 12)} dB")
+        st.metric("Packet Loss", f"{current.get('packet_loss', 2.5)}%")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# ================ TAB 3: ANALYTICS ================
+def tab_analytics(data):
+    """Tab 3: Analytics & Trends"""
+    current = data['data']
+    
+    st.markdown("### 📊 Analytics")
+    
+    # Create sample chart
+    times = pd.date_range(start='now', periods=30, freq='1min')
+    hr_values = [current['hr'] + np.random.normal(0, 5) for _ in range(30)]
+    hr_values = [max(40, min(160, hr)) for hr in hr_values]
+    
+    fig = px.line(
+        x=times,
+        y=hr_values,
+        title="Heart Rate Trend (Last 30 Minutes)",
+        labels={'x': 'Time', 'y': 'BPM'}
+    )
+    fig.update_layout(height=300)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Data table
+    st.markdown("#### Recent Data")
     table_data = []
-    current_time = datetime.now()
-    
-    for i in range(5):
-        timestamp = (current_time - timedelta(seconds=i*2)).strftime('%H:%M:%S')
+    for i in range(10):
         table_data.append({
-            'Time': timestamp,
-            'Node': data['data']['node_id'],
-            'HR': data['data']['hr'],
-            'SpO₂': data['data']['spo2'],
-            'Temp': f"{data['data']['temp']}°C",
-            'Activity': data['data']['activity'],
-            'Battery': f"{data['data']['battery']}%"
+            'Time': (datetime.now() - timedelta(minutes=i)).strftime('%H:%M'),
+            'HR': int(current['hr'] + np.random.normal(0, 3)),
+            'SpO₂': int(current['spo2'] + np.random.normal(0, 1)),
+            'Temp': f"{current['temp']:.1f}°C",
+            'Activity': current['activity']
         })
     
-    # Convert to DataFrame and display
     df = pd.DataFrame(table_data)
-    st.dataframe(df, use_container_width=True, height=250)
+    st.dataframe(df, use_container_width=True)
 
-def display_sidebar(data):
-    """Display sidebar"""
+# ================ MAIN DASHBOARD ================
+def main():
+    """Main dashboard function"""
+    
+    # Malaysia timezone
+    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+    current_time_malaysia = datetime.now(malaysia_tz)
+    
+    # Header
+    st.markdown(f"""
+    <div class="main-header">
+        <h1 style="margin: 0; font-size: 2.5rem;">🏥 STEMCUBE Health Monitor</h1>
+        <p style="margin: 10px 0 0 0; font-size: 1.1rem; opacity: 0.9;">
+            Streamlit Cloud Dashboard • Malaysia Time: {current_time_malaysia.strftime('%H:%M:%S')}
+        </p>
+        <p style="margin: 5px 0 0 0; font-size: 0.9rem; opacity: 0.8;">
+            Universiti Malaysia Pahang • Final Year Project 2025
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Show warning if serial not available
+    if not SERIAL_AVAILABLE:
+        st.warning("""
+        ⚠️ **Demo Mode Active**
+        - pyserial is not installed on Streamlit Cloud
+        - Showing demo data only
+        - For real data, run locally with COM8 connected
+        """)
+    
+    # Get data
+    data = generate_demo_data()
+    
+    # Sidebar
     with st.sidebar:
         st.markdown("<div class='sidebar-content'>", unsafe_allow_html=True)
-        
         st.markdown("### ⚙️ Control Panel")
         
-        # Auto-refresh
         auto_refresh = st.toggle("🔄 Auto Refresh", value=True)
         refresh_rate = st.slider("Refresh Rate (seconds)", 1, 10, 2)
         
         st.markdown("---")
+        st.markdown("### 📊 System Info")
         
-        # Status
-        st.markdown("### 📊 System Status")
         if data['is_real_data']:
             st.success("✅ **Connected to STEMCUBE**")
         else:
-            st.warning("🔄 **Demo Mode**")
+            st.info("🔄 **Demo Mode**")
         
-        st.markdown(f"**Last Update:** {data['malaysia_time']}")
-        
-        st.markdown("---")
-        
-        # Quick Stats
-        st.markdown("### 📈 Quick Stats")
-        st.metric("❤️ Heart Rate", f"{data['data']['hr']} BPM")
+        st.metric("❤️ HR", f"{data['data']['hr']} BPM")
         st.metric("🩸 SpO₂", f"{data['data']['spo2']}%")
-        st.metric("🌡️ Temperature", f"{data['data']['temp']}°C")
+        st.metric("🌡️ Temp", f"{data['data']['temp']}°C")
         st.metric("🚶 Activity", data['data']['activity'])
         
         st.markdown("</div>", unsafe_allow_html=True)
-        
-        return auto_refresh, refresh_rate
-
-# ================ MAIN DASHBOARD ================
-
-def main():
-    """Main dashboard function - SIMPLIFIED"""
     
-    # Display header
-    display_header()
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["🩺 Health Vitals", "📡 System Status", "📊 Analytics"])
     
-    # Get data
-    data = get_sample_data()
+    with tab1:
+        tab_health_vitals(data)
     
-    # Display sidebar
-    auto_refresh, refresh_rate = display_sidebar(data)
+    with tab2:
+        tab_system_status(data)
     
-    # Main content area
-    
-    # Display activity
-    display_activity(data['data']['activity'])
-    
-    # Display vitals
-    display_vitals(data)
-    
-    # Display data table
-    display_data_table(data)
-    
-    # Simple charts
-    st.markdown("### 📈 Activity Timeline")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Heart rate chart
-        times = [datetime.now() - timedelta(seconds=i*5) for i in range(20)][::-1]
-        hr_values = [data['data']['hr'] + np.random.normal(0, 3) for _ in range(20)]
-        hr_values = [max(40, min(160, hr)) for hr in hr_values]
-        
-        fig_hr = px.line(
-            x=times,
-            y=hr_values,
-            title="Heart Rate Trend",
-            labels={'x': 'Time', 'y': 'BPM'}
-        )
-        fig_hr.update_layout(height=300, showlegend=False)
-        fig_hr.update_traces(line=dict(color='#8B4513', width=3))
-        st.plotly_chart(fig_hr, use_container_width=True)
-    
-    with col2:
-        # System metrics
-        st.markdown("<div class='system-card'>", unsafe_allow_html=True)
-        st.markdown("#### 📡 System Metrics")
-        
-        metrics_html = f"""
-        <div style="line-height: 2.5;">
-            <p><strong>🔋 Battery:</strong> {data['data']['battery']}%</p>
-            <p><strong>📡 Signal:</strong> {data['data']['rssi']} dB</p>
-            <p><strong>📶 SNR:</strong> {data['data']['snr']} dB</p>
-            <p><strong>📦 Packets:</strong> {data['data']['packet_id']:,}</p>
-            <p><strong>📊 Data Source:</strong> {'REAL' if data['is_real_data'] else 'DEMO'}</p>
-        </div>
-        """
-        st.markdown(metrics_html, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Alerts
-        st.markdown("<div class='system-card'>", unsafe_allow_html=True)
-        st.markdown("#### ⚠️ Alerts")
-        
-        alerts = []
-        if data['data']['hr'] > 100:
-            alerts.append(f"🔴 High heart rate: {data['data']['hr']} BPM")
-        if data['data']['spo2'] < 95:
-            alerts.append(f"🟡 Reduced SpO₂: {data['data']['spo2']}%")
-        if data['data']['temp'] > 37.5:
-            alerts.append(f"🔴 Elevated temperature: {data['data']['temp']}°C")
-        
-        if alerts:
-            for alert in alerts:
-                st.markdown(alert)
-        else:
-            st.markdown("✅ **All systems normal**")
-            st.markdown("<div class='status-normal' style='text-align: center;'>NORMAL</div>", unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+    with tab3:
+        tab_analytics(data)
     
     # Footer
-    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
-    current_time_malaysia = datetime.now(malaysia_tz)
-    
     st.markdown(f"""
     <div class="dashboard-footer">
         <p style="margin: 0; font-size: 14px;">
@@ -579,7 +562,7 @@ def main():
             🇲🇾 Malaysia Time: {current_time_malaysia.strftime('%H:%M:%S')}
         </p>
         <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">
-            Dashboard is working! • Version 1.0
+            Streamlit Cloud Version • Data Source: {data['activity_source']}
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -591,5 +574,5 @@ def main():
 
 # ================ RUN DASHBOARD ================
 if __name__ == "__main__":
-    # REMOVED AUTHENTICATION - Directly run main
+    # NO AUTHENTICATION - Direct access
     main()
