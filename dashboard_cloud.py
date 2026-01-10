@@ -1,4 +1,4 @@
-# dashboard_cloud.py - WITH TABS AND FIXED INDEX ERROR
+# dashboard_cloud.py - UPDATED FOR NEW STREAMLIT SYNTAX
 """
 REAL-TIME DASHBOARD FOR STEMCUBE
 READS ACTUAL DATA FROM COM8
@@ -324,7 +324,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         hr_fig = create_graph("❤️ Heart Rate", st.session_state.hr_data, '#8B4513', 'BPM')
         if hr_fig:
-            st.plotly_chart(hr_fig, use_container_width=True)
+            st.plotly_chart(hr_fig, width='stretch')
         else:
             st.info("Waiting for HR data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -333,7 +333,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         spo2_fig = create_graph("🩸 Blood Oxygen", st.session_state.spo2_data, '#556B2F', '%')
         if spo2_fig:
-            st.plotly_chart(spo2_fig, use_container_width=True)
+            st.plotly_chart(spo2_fig, width='stretch')
         else:
             st.info("Waiting for SpO₂ data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -344,7 +344,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         temp_fig = create_graph("🌡️ Temperature", st.session_state.temp_data, '#D4A76A', '°C')
         if temp_fig:
-            st.plotly_chart(temp_fig, use_container_width=True)
+            st.plotly_chart(temp_fig, width='stretch')
         else:
             st.info("Waiting for temp data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -353,7 +353,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         move_fig = create_graph("🏃 Movement", st.session_state.movement_data, '#8D6E63', 'Level')
         if move_fig:
-            st.plotly_chart(move_fig, use_container_width=True)
+            st.plotly_chart(move_fig, width='stretch')
         else:
             st.info("Waiting for movement data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -407,7 +407,7 @@ def tab_system_status(current_data):
         ))
         
         fig_battery.update_layout(height=200, margin=dict(t=30, b=20, l=20, r=20))
-        st.plotly_chart(fig_battery, use_container_width=True)
+        st.plotly_chart(fig_battery, width='stretch')
         
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -432,7 +432,7 @@ def tab_data_log():
     st.markdown("### 📋 Recent Data Log")
     
     if len(st.session_state.timestamps) > 0:
-        # FIXED: Safe way to get last 10 items
+        # Safe way to get last 10 items
         n_items = min(10, len(st.session_state.timestamps))
         
         # Get indices for last n_items
@@ -463,7 +463,9 @@ def tab_data_log():
             df = pd.DataFrame(table_data)
             # Remove Index column for display
             df_display = df.drop('Index', axis=1) if 'Index' in df.columns else df
-            st.dataframe(df_display, use_container_width=True, height=400)
+            
+            # FIXED: Updated DataFrame syntax
+            st.dataframe(df_display, width='stretch', height=400)
         else:
             st.info("No valid data to display")
     else:
@@ -534,7 +536,7 @@ def main():
         st.write(f"Raw Packets: {len(st.session_state.raw_packets)}")
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # TABS - Your 3 tabs are here!
+    # TABS
     tab1, tab2, tab3 = st.tabs(["🩺 Health Vitals", "📡 System Status", "📋 Data Log"])
     
     with tab1:
