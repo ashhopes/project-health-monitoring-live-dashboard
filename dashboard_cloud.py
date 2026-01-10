@@ -1,4 +1,4 @@
-# dashboard_cloud.py - UPDATED FOR NEW STREAMLIT SYNTAX
+# dashboard_cloud.py - COMPLETELY FIXED VERSION
 """
 REAL-TIME DASHBOARD FOR STEMCUBE
 READS ACTUAL DATA FROM COM8
@@ -85,18 +85,27 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ================ INITIALIZE DATA BUFFERS ================
-if 'hr_data' not in st.session_state:
-    st.session_state.hr_data = deque(maxlen=50)
-if 'spo2_data' not in st.session_state:
-    st.session_state.spo2_data = deque(maxlen=50)
-if 'temp_data' not in st.session_state:
-    st.session_state.temp_data = deque(maxlen=50)
-if 'movement_data' not in st.session_state:
-    st.session_state.movement_data = deque(maxlen=50)
-if 'timestamps' not in st.session_state:
-    st.session_state.timestamps = deque(maxlen=50)
-if 'raw_packets' not in st.session_state:
-    st.session_state.raw_packets = deque(maxlen=20)
+def init_session_state():
+    """Initialize all session state variables"""
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
+        
+        # Initialize all buffers with at least one value to prevent empty deques
+        current_time = datetime.now()
+        
+        # Initialize with dummy data
+        st.session_state.hr_data = deque([70], maxlen=50)
+        st.session_state.spo2_data = deque([98], maxlen=50)
+        st.session_state.temp_data = deque([36.5], maxlen=50)
+        st.session_state.movement_data = deque([1.0], maxlen=50)
+        st.session_state.timestamps = deque([current_time], maxlen=50)
+        st.session_state.raw_packets = deque(maxlen=20)
+        
+        # Store complete data records
+        st.session_state.all_data = deque(maxlen=50)
+
+# Initialize session state
+init_session_state()
 
 # ================ PARSE ACTUAL STEMCUBE DATA ================
 
@@ -111,7 +120,8 @@ def parse_stemcube_packet(raw_line):
         'packet_id': 0,
         'node_id': 'NODE_e661',
         'raw': raw_line[:50] + "..." if len(raw_line) > 50 else raw_line,
-        'is_real': False
+        'is_real': False,
+        'timestamp': datetime.now()
     }
     
     try:
@@ -186,7 +196,6 @@ def read_com8_data():
             
             if raw_line:
                 data = parse_stemcube_packet(raw_line)
-                data['timestamp'] = datetime.now()
                 
                 st.session_state.raw_packets.append({
                     'time': datetime.now().strftime('%H:%M:%S'),
@@ -202,12 +211,13 @@ def read_com8_data():
     return None
 
 def get_current_data():
-    """Get current data"""
+    """Get current data - ALWAYS returns valid data"""
     real_data = read_com8_data()
     
     if real_data:
         return real_data
     else:
+        # Generate demo data
         current_time = datetime.now()
         seconds = current_time.second
         
@@ -238,26 +248,49 @@ def get_current_data():
         }
 
 def update_data_buffers(data):
-    """Update data buffers"""
+    """Update data buffers - SAFE VERSION"""
+    # Always update timestamp first
     st.session_state.timestamps.append(data['timestamp'])
+    
+    # Update all other buffers - they should always have data
     st.session_state.hr_data.append(data['hr'])
     st.session_state.spo2_data.append(data['spo2'])
     st.session_state.temp_data.append(data['temp'])
     st.session_state.movement_data.append(data['movement'])
+    
+    # Store complete data record
+    st.session_state.all_data.append({
+        'timestamp': data['timestamp'],
+        'hr': data['hr'],
+        'spo2': data['spo2'],
+        'temp': data['temp'],
+        'movement': data['movement'],
+        'activity': data['activity']
+    })
 
 # ================ GRAPH FUNCTIONS ================
 
 def create_graph(title, y_data, color, y_label):
-    """Create a generic graph"""
+    """Create a generic graph - SAFE VERSION"""
     if len(st.session_state.timestamps) == 0:
         return None
     
-    n_points = min(30, len(st.session_state.timestamps))
+    # Convert to lists for safe slicing
+    timestamps_list = list(st.session_state.timestamps)
+    y_data_list = list(y_data)
+    
+    # Make sure we have the same length
+    min_len = min(len(timestamps_list), len(y_data_list))
+    
+    if min_len == 0:
+        return None
+    
+    n_points = min(30, min_len)
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=list(st.session_state.timestamps)[-n_points:],
-        y=list(y_data)[-n_points:],
+        x=timestamps_list[-n_points:],
+        y=y_data_list[-n_points:],
         mode='lines+markers',
         line=dict(color=color, width=2),
         marker=dict(size=4)
@@ -324,7 +357,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         hr_fig = create_graph("❤️ Heart Rate", st.session_state.hr_data, '#8B4513', 'BPM')
         if hr_fig:
-            st.plotly_chart(hr_fig, width='stretch')
+            st.plotly_chart(hr_fig, use_container_width=True)
         else:
             st.info("Waiting for HR data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -333,7 +366,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         spo2_fig = create_graph("🩸 Blood Oxygen", st.session_state.spo2_data, '#556B2F', '%')
         if spo2_fig:
-            st.plotly_chart(spo2_fig, width='stretch')
+            st.plotly_chart(spo2_fig, use_container_width=True)
         else:
             st.info("Waiting for SpO₂ data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -344,7 +377,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         temp_fig = create_graph("🌡️ Temperature", st.session_state.temp_data, '#D4A76A', '°C')
         if temp_fig:
-            st.plotly_chart(temp_fig, width='stretch')
+            st.plotly_chart(temp_fig, use_container_width=True)
         else:
             st.info("Waiting for temp data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -353,7 +386,7 @@ def tab_health_vitals(current_data):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         move_fig = create_graph("🏃 Movement", st.session_state.movement_data, '#8D6E63', 'Level')
         if move_fig:
-            st.plotly_chart(move_fig, width='stretch')
+            st.plotly_chart(move_fig, use_container_width=True)
         else:
             st.info("Waiting for movement data...")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -389,7 +422,7 @@ def tab_system_status(current_data):
         st.markdown("### 🔋 System Metrics")
         
         # Battery gauge
-        battery = 85  # Default
+        battery = 85
         fig_battery = go.Figure(go.Indicator(
             mode="gauge+number",
             value=battery,
@@ -407,7 +440,7 @@ def tab_system_status(current_data):
         ))
         
         fig_battery.update_layout(height=200, margin=dict(t=30, b=20, l=20, r=20))
-        st.plotly_chart(fig_battery, width='stretch')
+        st.plotly_chart(fig_battery, use_container_width=True)
         
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -426,34 +459,31 @@ def tab_system_status(current_data):
 # ================ TAB 3: DATA LOG ================
 
 def tab_data_log():
-    """Tab 3: Data Log"""
+    """Tab 3: Data Log - COMPLETELY SAFE VERSION"""
     
     st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
     st.markdown("### 📋 Recent Data Log")
     
-    if len(st.session_state.timestamps) > 0:
-        # Safe way to get last 10 items
-        n_items = min(10, len(st.session_state.timestamps))
-        
-        # Get indices for last n_items
-        indices = list(range(len(st.session_state.timestamps)))[-n_items:]
+    # METHOD 1: Use the all_data deque which has complete records
+    if len(st.session_state.all_data) > 0:
+        # Get last 10 records
+        n_items = min(10, len(st.session_state.all_data))
         
         table_data = []
-        for idx in indices:
-            # Check if buffers have data at this index
-            if (idx < len(st.session_state.timestamps) and 
-                idx < len(st.session_state.hr_data) and
-                idx < len(st.session_state.spo2_data) and
-                idx < len(st.session_state.temp_data) and
-                idx < len(st.session_state.movement_data)):
-                
+        # Get the last n_items records safely
+        all_data_list = list(st.session_state.all_data)
+        
+        for i in range(1, n_items + 1):
+            idx = -i
+            if -idx <= len(all_data_list):
+                record = all_data_list[idx]
                 table_data.append({
-                    'Time': st.session_state.timestamps[idx].strftime('%H:%M:%S'),
-                    'HR': st.session_state.hr_data[idx],
-                    'SpO₂': st.session_state.spo2_data[idx],
-                    'Temp': f"{st.session_state.temp_data[idx]:.1f}°C",
-                    'Movement': f"{st.session_state.movement_data[idx]:.1f}",
-                    'Index': idx
+                    'Time': record['timestamp'].strftime('%H:%M:%S'),
+                    'HR': record['hr'],
+                    'SpO₂': record['spo2'],
+                    'Temp': f"{record['temp']:.1f}°C",
+                    'Movement': f"{record['movement']:.1f}",
+                    'Activity': record['activity']
                 })
         
         # Reverse to show newest first
@@ -461,13 +491,9 @@ def tab_data_log():
         
         if table_data:
             df = pd.DataFrame(table_data)
-            # Remove Index column for display
-            df_display = df.drop('Index', axis=1) if 'Index' in df.columns else df
-            
-            # FIXED: Updated DataFrame syntax
-            st.dataframe(df_display, width='stretch', height=400)
+            st.dataframe(df, use_container_width=True, height=400)
         else:
-            st.info("No valid data to display")
+            st.info("No data available")
     else:
         st.info("Waiting for data...")
     
@@ -478,11 +504,15 @@ def tab_data_log():
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("HR Avg", f"{np.mean(list(st.session_state.hr_data)):.0f} BPM")
+            # Convert deque to list for safe operations
+            hr_list = list(st.session_state.hr_data)
+            st.metric("HR Avg", f"{np.mean(hr_list):.0f} BPM")
         with col2:
-            st.metric("SpO₂ Avg", f"{np.mean(list(st.session_state.spo2_data)):.0f}%")
+            spo2_list = list(st.session_state.spo2_data)
+            st.metric("SpO₂ Avg", f"{np.mean(spo2_list):.0f}%")
         with col3:
-            st.metric("Temp Avg", f"{np.mean(list(st.session_state.temp_data)):.1f}°C")
+            temp_list = list(st.session_state.temp_data)
+            st.metric("Temp Avg", f"{np.mean(temp_list):.1f}°C")
         with col4:
             st.metric("Data Points", len(st.session_state.timestamps))
     
@@ -533,7 +563,7 @@ def main():
         st.write(f"HR Points: {len(st.session_state.hr_data)}")
         st.write(f"SpO₂ Points: {len(st.session_state.spo2_data)}")
         st.write(f"Temp Points: {len(st.session_state.temp_data)}")
-        st.write(f"Raw Packets: {len(st.session_state.raw_packets)}")
+        st.write(f"Total Records: {len(st.session_state.all_data)}")
         st.markdown("</div>", unsafe_allow_html=True)
     
     # TABS
@@ -555,4 +585,6 @@ def main():
 
 # ================ RUN DASHBOARD ================
 if __name__ == "__main__":
+    # Initialize first
+    init_session_state()
     main()
