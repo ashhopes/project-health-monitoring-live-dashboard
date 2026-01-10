@@ -1,7 +1,6 @@
-# dashboard_cloud.py - UPDATED WITH REAL STEMCUBE DATA SUPPORT
+# dashboard_cloud.py - FIXED VERSION
 """
-REAL STEMCUBE HEALTH MONITORING DASHBOARD
-This version receives REAL data from STEMCUBE bridge
+REAL STEMCUBE HEALTH MONITORING DASHBOARD - ERROR FIXED
 """
 
 import streamlit as st
@@ -10,7 +9,6 @@ import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
-import json
 
 # ================ LOGIN ================
 def check_login():
@@ -45,7 +43,6 @@ st.set_page_config(
 )
 
 # ================ INITIALIZE REAL DATA STORAGE ================
-# CRITICAL: This stores REAL STEMCUBE data
 if 'real_stemcube_data' not in st.session_state:
     st.session_state.real_stemcube_data = []
 if 'last_real_data' not in st.session_state:
@@ -68,12 +65,11 @@ st.markdown("""
 with st.sidebar:
     st.header("⚙️ Controls")
     
-    # Connection status - WILL UPDATE WHEN REAL DATA ARRIVES
+    # Connection status
     st.subheader("📡 Connection Status")
     status_col1, status_col2 = st.columns(2)
     
     with status_col1:
-        # Check if we have recent real data
         if st.session_state.last_real_data:
             time_diff = (datetime.now() - st.session_state.last_real_data).total_seconds()
             if time_diff < 10:
@@ -111,13 +107,13 @@ with st.sidebar:
         st.session_state.stemcube_connected = False
         st.rerun()
     
-    # Debug info (visible only to you)
+    # Debug info
     with st.expander("🔧 Debug Info"):
         st.write(f"Real data points: {len(st.session_state.real_stemcube_data)}")
         st.write(f"Last data: {st.session_state.last_real_data}")
         st.write(f"Connection: {st.session_state.connection_status}")
         
-        # Simulate data for testing (remove in production)
+        # Test button
         if st.button("🧪 Test with Sample Data"):
             test_data = {
                 'node_id': 'NODE_e661',
@@ -125,9 +121,6 @@ with st.sidebar:
                 'hr': 72,
                 'spo2': 98,
                 'temp': 36.5,
-                'ax': 0.1,
-                'ay': 0.2,
-                'az': 1.0,
                 'activity': 'RESTING'
             }
             st.session_state.real_stemcube_data.append(test_data)
@@ -138,21 +131,18 @@ with st.sidebar:
     st.markdown("---")
     st.info("Project by mOONbLOOM26 🌙")
 
-# ================ DATA HANDLING FUNCTIONS ================
+# ================ DATA FUNCTIONS ================
 def update_real_data(new_data):
-    """This function is called when STEMCUBE bridge sends data"""
+    """Update with real STEMCUBE data"""
     try:
         if isinstance(new_data, dict):
-            # Add timestamp if not present
             if 'timestamp' not in new_data:
                 new_data['timestamp'] = datetime.now().isoformat()
             
-            # Add to real data storage
             st.session_state.real_stemcube_data.append(new_data)
             st.session_state.last_real_data = datetime.now()
             st.session_state.stemcube_connected = True
             
-            # Keep only last 500 records
             if len(st.session_state.real_stemcube_data) > 500:
                 st.session_state.real_stemcube_data = st.session_state.real_stemcube_data[-500:]
             
@@ -162,19 +152,18 @@ def update_real_data(new_data):
     return False
 
 def get_display_data():
-    """Get data for display - PRIORITIZES REAL DATA"""
-    # Check if we have real STEMCUBE data
+    """Get data for display"""
     if st.session_state.real_stemcube_data:
         df = pd.DataFrame(st.session_state.real_stemcube_data[-n_samples:])
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-        return df, True  # Real data flag
+        return df, True
     
-    # Fallback to simulated data (only for testing)
+    # Fallback sample data
     return generate_sample_data(), False
 
 def generate_sample_data():
-    """Generate sample data ONLY when no real data exists"""
+    """Generate sample data"""
     base_time = datetime.now() - timedelta(minutes=10)
     data = []
     for i in range(n_samples):
@@ -190,7 +179,7 @@ def generate_sample_data():
 
 # ================ MAIN DASHBOARD ================
 try:
-    # Get data (real data prioritized)
+    # Get data
     df, is_real_data = get_display_data()
     
     # Filter for selected node
@@ -203,9 +192,7 @@ try:
     if not node_df.empty and 'timestamp' in node_df.columns:
         node_df = node_df.sort_values("timestamp", ascending=True)
     
-    # ============ DASHBOARD CONTENT ============
-    
-    # Show data source indicator
+    # Show data source
     if is_real_data:
         st.success(f"✅ Displaying REAL STEMCUBE data from {selected_node}")
     else:
@@ -237,13 +224,12 @@ try:
                 st.metric("Heart Rate", f"{hr:.0f} BPM", 
                          "Normal" if 60 <= hr <= 100 else "Check")
                 
-                # HR Chart
+                # HR Chart - SIMPLIFIED
                 if len(node_df) > 1:
                     fig_hr = go.Figure()
                     fig_hr.add_trace(go.Scatter(
                         x=node_df['timestamp'], y=node_df['hr'],
-                        mode='lines', line=dict(color='red', width=2),
-                        name='Heart Rate'
+                        mode='lines', line=dict(color='red', width=2)
                     ))
                     fig_hr.update_layout(
                         height=200,
@@ -279,13 +265,12 @@ try:
                 st.metric("Temperature", f"{temp:.1f} °C",
                          "Normal" if 36 <= temp <= 37.5 else "Check")
                 
-                # Temp Chart
+                # Temp Chart - SIMPLIFIED
                 if len(node_df) > 1:
                     fig_temp = go.Figure()
                     fig_temp.add_trace(go.Scatter(
                         x=node_df['timestamp'], y=node_df['temp'],
-                        mode='lines', line=dict(color='orange', width=2),
-                        name='Temperature'
+                        mode='lines', line=dict(color='orange', width=2)
                     ))
                     fig_temp.update_layout(
                         height=200,
@@ -316,21 +301,16 @@ try:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Show if this is real data
                 if is_real_data:
                     st.caption("🎯 Real STEMCUBE Data")
                 else:
                     st.caption("📱 Sample Data")
-            
-            # Show latest data point info
-            with st.expander("📋 Latest Data Details"):
-                st.json(latest.to_dict())
     
     with tab2:
         st.header("Data Trends")
         
         if len(node_df) > 1:
-            # Create combined chart
+            # FIXED: Use correct property names
             fig = go.Figure()
             
             # Add HR trace
@@ -340,7 +320,7 @@ try:
                 line=dict(color='red', width=2)
             ))
             
-            # Add SpO2 trace (secondary y-axis)
+            # Add SpO2 trace
             fig.add_trace(go.Scatter(
                 x=node_df['timestamp'], y=node_df['spo2'],
                 mode='lines', name='SpO₂',
@@ -348,21 +328,17 @@ try:
                 yaxis='y2'
             ))
             
-            # Add Temperature trace
-            fig.add_trace(go.Scatter(
-                x=node_df['timestamp'], y=node_df['temp'],
-                mode='lines', name='Temperature',
-                line=dict(color='orange', width=2)
-            ))
-            
-            # Update layout with dual y-axes
+            # FIXED: Use 'title' object instead of 'titlefont'
             fig.update_layout(
                 title="Vital Signs Trends",
                 xaxis_title="Time",
-                yaxis=dict(title="HR / Temp", titlefont=dict(color="red")),
+                yaxis=dict(
+                    title="HR (BPM) / Temp (°C)",
+                    titlefont=dict(color="red")  # FIXED: inside dict
+                ),
                 yaxis2=dict(
                     title="SpO₂ (%)",
-                    titlefont=dict(color="blue"),
+                    titlefont=dict(color="blue"),  # FIXED: inside dict
                     overlaying='y',
                     side='right'
                 ),
@@ -416,11 +392,6 @@ try:
                     mime="text/csv",
                     use_container_width=True
                 )
-            
-            with col_exp2:
-                if st.button("📋 Copy to Clipboard", use_container_width=True):
-                    st.session_state.clipboard_data = node_df.to_string()
-                    st.success("Data copied to clipboard!")
         else:
             st.info("No data available for analytics")
     
@@ -431,7 +402,6 @@ try:
 
 except Exception as e:
     st.error(f"Dashboard error: {e}")
-    st.info("Please refresh the page or check connection")
 
 # Footer
 st.markdown("---")
@@ -439,6 +409,5 @@ st.markdown(f"""
 <div style='text-align: center; color: gray;'>
     <p>STEMCUBE Health Monitoring • {datetime.now().strftime('%H:%M:%S')}</p>
     <p>Status: {st.session_state.connection_status}</p>
-    <p>Data Source: {'REAL STEMCUBE' if st.session_state.stemcube_connected else 'SAMPLE DATA'}</p>
 </div>
 """, unsafe_allow_html=True)
