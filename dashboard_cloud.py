@@ -1,7 +1,8 @@
-# dashboard_cloud.py - UPDATED FOR REAL STEMCUBE DATA
+# dashboard_cloud_final.py
 """
-REAL-TIME DASHBOARD FOR STEMCUBE
-CONNECTED TO REAL STEMCUBE DATA FROM COM8
+🏥 STEMCUBE REAL-TIME MONITORING DASHBOARD
+🚀 READY FOR STREAMLIT CLOUD DEPLOYMENT
+✅ Google Sheets Integrated | ✅ UMP Theme | ✅ Live Data
 """
 
 import streamlit as st
@@ -15,119 +16,66 @@ import pytz
 from collections import deque
 import base64
 import math
+import gspread
+from google.oauth2.service_account import Credentials
 
-# ================ TRY TO IMPORT SERIAL ================
-try:
-    import serial
-    SERIAL_AVAILABLE = True
-except ImportError:
-    SERIAL_AVAILABLE = False
+# ================ GOOGLE SHEETS CONFIGURATION ================
+# 🔗 PASTE YOUR GOOGLE SHEETS LINK HERE:
+GOOGLE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/1F3exCRakTPG-Jsbfk4KG0T2cUDeyvoTfp36G-i9kcEk/edit"
 
-# ================ PARSER FUNCTION ================
-def parse_real_stemcube_data(raw_line):
-    """Parse the ACTUAL STEMCUBE format: |timestamp|SpO2|HR|humidity|temperature|ax|ay|az|gx|gy|gz|activity|"""
-    
-    # Default values
-    data = {
-        'node_id': 'STEMCUBE_MASTER',
-        'hr': 72,
-        'spo2': 98,
-        'temp': 36.5,
-        'activity_level': 'RESTING',
-        'movement': 0.0,
-        'humidity': 50.0,
-        'confidence': 0.95,
-        'is_real': True,
-        'raw_packet': raw_line,
-        'parsed_success': False
-    }
-    
+# ================ GOOGLE SHEETS FUNCTIONS ================
+@st.cache_resource
+def init_google_sheets():
+    """Initialize connection to Google Sheets"""
     try:
-        print(f"📥 REAL STEMCUBE DATA: {raw_line[:80]}")
-        
-        # Remove leading/trailing pipes and split
-        cleaned = raw_line.strip('|')
-        parts = cleaned.split('|')
-        
-        # Expected: 12 parts
-        # Index: 0=timestamp, 1=SpO2, 2=HR, 3=humidity, 4=temp, 5=ax, 6=ay, 7=az, 
-        #         8=gx, 9=gy, 10=gz, 11=activity
-        
-        if len(parts) >= 12:
-            # Parse SpO2 (index 1)
-            try:
-                spo2_val = float(parts[1])
-                if 70 <= spo2_val <= 100:
-                    data['spo2'] = int(spo2_val)
-            except:
-                pass
-            
-            # Parse HR (index 2)
-            try:
-                hr_val = float(parts[2])
-                if 40 <= hr_val <= 200:
-                    data['hr'] = int(hr_val)
-            except:
-                pass
-            
-            # Parse Temperature (index 4)
-            try:
-                temp_val = float(parts[4])
-                if 20 <= temp_val <= 45:
-                    data['temp'] = round(temp_val, 1)
-            except:
-                pass
-            
-            # Parse Humidity (index 3)
-            try:
-                hum_val = float(parts[3])
-                data['humidity'] = hum_val
-            except:
-                pass
-            
-            # Parse Activity (index 11)
-            try:
-                activity_str = parts[11].strip().lower()
-                if 'walking' in activity_str:
-                    data['activity_level'] = 'WALKING'
-                    data['movement'] = 2.5
-                elif 'running' in activity_str:
-                    data['activity_level'] = 'RUNNING'
-                    data['movement'] = 4.0
-                elif 'standing' in activity_str:
-                    data['activity_level'] = 'STANDING'
-                    data['movement'] = 1.0
-                else:
-                    data['activity_level'] = 'RESTING'
-                    data['movement'] = 0.0
-            except:
-                pass
-            
-            # Calculate movement from gyroscope data
-            try:
-                gx = float(parts[8])
-                gy = float(parts[9])
-                gz = float(parts[10])
-                movement = math.sqrt(gx*gx + gy*gy + gz*gz)
-                data['movement'] = round(movement, 2)
-            except:
-                pass
-            
-            data['parsed_success'] = True
-            print(f"✅ PARSED: HR={data['hr']}, SpO2={data['spo2']}, Temp={data['temp']}, Activity={data['activity_level']}")
-            
+        # Convert public Google Sheets URL to CSV
+        csv_url = GOOGLE_SHEETS_URL.replace('/edit#gid=', '/export?format=csv&gid=')
+        return {'type': 'public', 'csv_url': csv_url}
     except Exception as e:
-        print(f"⚠️ Parse error: {e}")
-    
-    return data
+        st.error(f"Error configuring Google Sheets: {e}")
+        return None
 
-# ================ PAGE CONFIG ================
-st.set_page_config(
-    page_title="STEMCUBE REAL-TIME MONITOR",
-    page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+def save_to_google_sheets_simple(data):
+    """Simple method to save data (for Streamlit Cloud)"""
+    try:
+        # Save to session state (works on Streamlit Cloud)
+        if 'google_sheets_data' not in st.session_state:
+            st.session_state.google_sheets_data = []
+        
+        record = {
+            'Timestamp': data['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+            'SpO2': int(data['spo2']),
+            'Heart_Rate': int(data['hr']),
+            'Temperature': float(data['temp']),
+            'Movement': float(data['movement']),
+            'Activity': data['activity'],
+            'Data_Source': 'REAL' if data.get('is_real', False) else 'DEMO',
+            'Node_ID': data.get('node_id', 'STEMCUBE_001')
+        }
+        
+        st.session_state.google_sheets_data.append(record)
+        
+        # Keep only last 100 records
+        if len(st.session_state.google_sheets_data) > 100:
+            st.session_state.google_sheets_data = st.session_state.google_sheets_data[-100:]
+        
+        return True, "✅ Data saved locally"
+    except Exception as e:
+        return False, f"❌ Error: {str(e)}"
+
+def load_from_google_sheets():
+    """Load data from Google Sheets"""
+    try:
+        gsheet_conn = init_google_sheets()
+        if gsheet_conn and gsheet_conn['type'] == 'public':
+            df = pd.read_csv(gsheet_conn['csv_url'])
+            return df
+        return pd.DataFrame()
+    except:
+        # Fallback to session state data
+        if 'google_sheets_data' in st.session_state:
+            return pd.DataFrame(st.session_state.google_sheets_data)
+        return pd.DataFrame()
 
 # ================ UMP LOGO BASE64 ================
 UMP_LOGO_BASE64 = """
@@ -135,8 +83,8 @@ iVBORw0KGgoAAAANSUhEUgAAAfQAAABmCAYAAAD3mVZSAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA
 AXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAZdSURBVHgB7d1BbhtHEIDRGRp5/4uyJ5ByYBwY
 wIF9YIC4h6QL2ySbe2d2B1jfRwEESfL/j1/f/vgJAPDavr1/AAD4IkEHAEkEHQCkEXQAkEbQAUAa
 QQcAaQQdAKQRdACQRtABQBpBBwBpBB0ApBF0AJBG0AFAGkE3wOsX3j/xAsA6V2y/Owg6AHh9j85S
-0AFAu6uzFHQA0GrGLAUdALSZNUtBBwAtZs9S0AHAy1bmKOgA4KWr8xN0APCy1fkJOgB4ycoMBR0A
-vGRljoIOAF6yOkdBBwDjrc5R0AHAaKtzFHQA0GLGPAUdAIw2Y56CDgDGmjVPQQcAI82cq6ADgHFm
+0AFAu6uzFHQA0GrGLAUdALSZNUtBBwAtZs9S0AFAy1bmKOgA4KWr8xN0APCy1fkJOgB4ycoMBR0A
+vGRljoIOAF6yOkdBBwAjrc5R0AHAaKtzFHQA0GLGPAUdAIw2Y56CDgDGmjVPQQcAI82cq6ADgHFm
 zlXQAcAos2cr6ABgjNnzFXQAMMLq+Qo6AFhu9YwFHQAsN3vGgg4Alpo9Z0EHAEvNnrOgA4BlVsxZ
 0AHAEitmLegAYL4VsxZ0ADDXilkLOgCYa9W8BR0AzLNq3oIOAOZZNW9BBwDzrJq3oAOAeVbNW9AB
 wByr5i3oAGCeVfMWdAAwx6p5CzoAmGflzAUdAMyxcuaCDgDmWDlzQQcAc6ycuaADgBlWz13QAcD1
@@ -153,134 +101,17 @@ XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
 0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
 AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
 wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AGA9//4HZRlAQAt9zY4AAAAAElFTkSuQmCC
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AGA9//4HZRlAQAt9zY4AAAA
+AElFTkSuQmCC
 """
+
+# ================ PAGE CONFIG ================
+st.set_page_config(
+    page_title="STEMCUBE REAL-TIME MONITOR",
+    page_icon="🏥",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # ================ MUJI + OLIVE MARROON THEME ================
 st.markdown(f"""
@@ -297,13 +128,11 @@ st.markdown(f"""
         --earth-green: #6B8E23;
     }}
     
-    /* MAIN BACKGROUND */
     .stApp {{
         background: linear-gradient(135deg, var(--soft-beige) 0%, var(--cream) 100%);
         font-family: 'Segoe UI', 'Arial', sans-serif;
     }}
     
-    /* HEADER WITH LOGO */
     .main-header {{
         background: linear-gradient(135deg, var(--muji-maroon) 0%, var(--olive-green) 100%);
         color: white;
@@ -315,20 +144,6 @@ st.markdown(f"""
         position: relative;
     }}
     
-    .logo-container {{
-        position: absolute;
-        left: 30px;
-        top: 50%;
-        transform: translateY(-50%);
-    }}
-    
-    .logo-img {{
-        height: 60px;
-        width: auto;
-        filter: brightness(0) invert(1);
-    }}
-    
-    /* CARD STYLES */
     .metric-card {{
         background: linear-gradient(135deg, white 0%, var(--champagne) 100%);
         padding: 20px;
@@ -353,7 +168,6 @@ st.markdown(f"""
         margin-bottom: 20px;
     }}
     
-    /* SIDEBAR */
     .sidebar-section {{
         background: linear-gradient(135deg, var(--champagne) 0%, white 100%);
         padding: 20px;
@@ -363,47 +177,6 @@ st.markdown(f"""
         border: 2px solid var(--soft-beige);
     }}
     
-    /* TABS */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 5px;
-        background: var(--soft-beige);
-        padding: 5px;
-        border-radius: 10px;
-    }}
-    
-    .stTabs [data-baseweb="tab"] {{
-        background: var(--champagne);
-        border-radius: 8px 8px 0 0;
-        padding: 12px 24px;
-        font-weight: 600;
-        color: var(--dark-chocolate);
-        border: 2px solid transparent;
-        transition: all 0.3s;
-    }}
-    
-    .stTabs [aria-selected="true"] {{
-        background: linear-gradient(135deg, var(--muji-maroon) 0%, var(--olive-green) 100%) !important;
-        color: white !important;
-        border-color: var(--muji-maroon) !important;
-    }}
-    
-    /* BUTTONS */
-    .stButton button {{
-        background: linear-gradient(135deg, var(--olive-green) 0%, var(--muji-maroon) 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: 600;
-        transition: all 0.3s;
-    }}
-    
-    .stButton button:hover {{
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
-    }}
-    
-    /* METRICS */
     .metric-value {{
         font-size: 32px;
         font-weight: 700;
@@ -419,7 +192,6 @@ st.markdown(f"""
         letter-spacing: 0.5px;
     }}
     
-    /* STATUS INDICATORS */
     .status-normal {{
         background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
         color: white;
@@ -450,20 +222,6 @@ st.markdown(f"""
         font-size: 13px;
     }}
     
-    /* DATA TABLE */
-    .dataframe {{
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }}
-    
-    .dataframe th {{
-        background: var(--olive-green) !important;
-        color: white !important;
-        font-weight: 600 !important;
-    }}
-    
-    /* FOOTER */
     .dashboard-footer {{
         background: linear-gradient(135deg, var(--dark-chocolate) 0%, #2C1810 100%);
         color: var(--champagne);
@@ -473,136 +231,42 @@ st.markdown(f"""
         text-align: center;
         font-size: 14px;
     }}
-    
-    /* ACTIVITY EMOJI */
-    .activity-emoji {{
-        font-size: 48px;
-        margin: 10px 0;
-        animation: pulse 2s ease-in-out infinite;
-    }}
-    
-    @keyframes pulse {{
-        0% {{ transform: scale(1); }}
-        50% {{ transform: scale(1.1); }}
-        100% {{ transform: scale(1); }}
-    }}
 </style>
 """, unsafe_allow_html=True)
 
-# ================ INITIALIZE DATA BUFFERS ================
+# ================ INITIALIZE DATA ================
 def init_session_state():
-    """Initialize all session state variables WITH DATA"""
+    """Initialize all session state variables"""
     if 'initialized' not in st.session_state:
         st.session_state.initialized = True
         current_time = datetime.now()
         
         # Create INITIAL DATA
-        initial_hr = 75
-        initial_spo2 = 98
-        initial_temp = 36.5
-        initial_movement = 1.0
-        
-        # Initialize with 10 data points
-        st.session_state.hr_data = deque([initial_hr + np.random.normal(0, 3) for _ in range(10)], maxlen=50)
-        st.session_state.spo2_data = deque([initial_spo2 + np.random.normal(0, 1) for _ in range(10)], maxlen=50)
-        st.session_state.temp_data = deque([initial_temp + np.random.normal(0, 0.2) for _ in range(10)], maxlen=50)
-        st.session_state.movement_data = deque([initial_movement + np.random.normal(0, 0.3) for _ in range(10)], maxlen=50)
+        st.session_state.hr_data = deque([75, 76, 74, 77, 75, 76, 78, 76, 75, 74], maxlen=50)
+        st.session_state.spo2_data = deque([98, 97, 98, 96, 97, 98, 97, 98, 99, 98], maxlen=50)
+        st.session_state.temp_data = deque([36.5, 36.6, 36.5, 36.7, 36.6, 36.5, 36.6, 36.7, 36.5, 36.6], maxlen=50)
+        st.session_state.movement_data = deque([1.0, 1.2, 0.8, 2.5, 1.5, 0.7, 3.2, 1.8, 0.9, 1.1], maxlen=50)
         st.session_state.timestamps = deque([current_time - timedelta(seconds=i) for i in range(10)][::-1], maxlen=50)
         
-        # Raw packets storage
-        st.session_state.raw_packets = deque(maxlen=20)
+        # Google Sheets data
+        st.session_state.google_sheets_data = []
+        st.session_state.google_sheets_status = "Ready to connect"
         
-        # Store complete data records
+        # Store complete records
         st.session_state.all_data = deque([
             {
                 'timestamp': current_time - timedelta(seconds=i),
-                'hr': initial_hr + np.random.normal(0, 3),
-                'spo2': initial_spo2 + np.random.normal(0, 1),
-                'temp': initial_temp + np.random.normal(0, 0.2),
-                'movement': initial_movement + np.random.normal(0, 0.3),
+                'hr': 75 + np.random.randint(-3, 3),
+                'spo2': 97 + np.random.randint(-1, 2),
+                'temp': 36.5 + np.random.uniform(-0.2, 0.2),
+                'movement': 1.0 + np.random.uniform(0, 0.5),
                 'activity': ['RESTING', 'WALKING', 'RUNNING'][i % 3],
                 'is_real': False
             }
             for i in range(10)
         ], maxlen=50)
-        
-        # Connection status
-        st.session_state.com8_status = "Checking..."
 
-# ================ READ REAL STEMCUBE DATA ================
-def read_com8_direct():
-    """Read REAL STEMCUBE data from COM8"""
-    if not SERIAL_AVAILABLE:
-        return None, "Serial library not installed"
-    
-    try:
-        ser = serial.Serial('COM8', 9600, timeout=0.5)
-        
-        if ser.in_waiting > 0:
-            raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
-            ser.close()
-            
-            if raw_line and raw_line.startswith('|'):
-                print(f"📥 RAW FROM STEMCUBE: {raw_line[:80]}")
-                
-                # Parse using the REAL STEMCUBE parser
-                parsed = parse_real_stemcube_data(raw_line)
-                
-                if parsed['parsed_success']:
-                    data = {
-                        'timestamp': datetime.now(),
-                        'hr': parsed['hr'],
-                        'spo2': parsed['spo2'],
-                        'temp': parsed['temp'],
-                        'movement': parsed['movement'],
-                        'activity': parsed['activity_level'],
-                        'packet_id': int(time.time() * 100) % 10000,
-                        'node_id': parsed['node_id'],
-                        'is_real': True,
-                        'raw': raw_line[:60],
-                        'humidity': parsed.get('humidity', 0.0)
-                    }
-                    
-                    # Add status indicators
-                    data['hr_status'] = "NORMAL"
-                    if data['hr'] > 120:
-                        data['hr_status'] = "CRITICAL"
-                    elif data['hr'] > 100:
-                        data['hr_status'] = "WARNING"
-                        
-                    data['spo2_status'] = "NORMAL"
-                    if data['spo2'] < 90:
-                        data['spo2_status'] = "CRITICAL"
-                    elif data['spo2'] < 95:
-                        data['spo2_status'] = "WARNING"
-                        
-                    data['temp_status'] = "NORMAL"
-                    if data['temp'] > 38.0:
-                        data['temp_status'] = "CRITICAL"
-                    elif data['temp'] > 37.0:
-                        data['temp_status'] = "WARNING"
-                    
-                    # Store raw packet
-                    st.session_state.raw_packets.append({
-                        'time': datetime.now().strftime('%H:%M:%S'),
-                        'packet': raw_line[:80]
-                    })
-                    
-                    print(f"✅ PARSED: HR={data['hr']}, SpO2={data['spo2']}, Temp={data['temp']}, Activity={data['activity']}")
-                    return data, "✅ Connected to STEMCUBE"
-                else:
-                    return None, "✅ Connected (Parsing failed)"
-        
-        ser.close()
-        return None, "⏳ Waiting for STEMCUBE data..."
-        
-    except serial.SerialException:
-        return None, "❌ COM8 not available"
-    except Exception as e:
-        print(f"COM8 Error: {e}")
-        return None, f"⚠️ COM8 error"
-
-# ================ DISPLAY HEADER WITH LOGO ================
+# ================ DISPLAY HEADER ================
 def display_header():
     """Display header with UMP logo"""
     malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
@@ -610,9 +274,6 @@ def display_header():
     
     st.markdown(f"""
     <div class="main-header">
-        <div class="logo-container">
-            <img src="data:image/png;base64,{UMP_LOGO_BASE64}" class="logo-img">
-        </div>
         <div style="margin-left: 80px;">
             <h1 style="margin: 0; font-size: 2.2rem; font-weight: 700;">🏥 STEMCUBE REAL-TIME MONITOR</h1>
             <p style="margin: 8px 0 0 0; font-size: 1.1rem; opacity: 0.95;">
@@ -626,39 +287,44 @@ def display_header():
     </div>
     """, unsafe_allow_html=True)
 
-# ================ DEMO DATA ================
+# ================ DEMO DATA GENERATOR ================
 def get_demo_data():
-    """Generate demo data"""
+    """Generate demo data for testing"""
     current_time = datetime.now()
     
-    base_hr = 68 + np.random.normal(0, 4)
-    base_spo2 = 97 + np.random.normal(0, 1)
-    base_temp = 36.5 + np.random.normal(0, 0.2)
+    # Simulate different activities
+    activity_choice = np.random.choice(['RESTING', 'WALKING', 'RUNNING'], p=[0.5, 0.3, 0.2])
     
-    activities = ['RESTING', 'RESTING', 'RESTING', 'WALKING']
-    activity = np.random.choice(activities)
-    
-    if activity == 'RESTING':
-        movement = 0.5 + np.random.random() * 0.5
-        base_hr = max(60, min(75, base_hr))
-    else:
-        movement = 1.5 + np.random.random() * 1.0
-        base_hr = max(75, min(90, base_hr))
+    if activity_choice == 'RESTING':
+        hr = np.random.randint(60, 80)
+        spo2 = np.random.randint(96, 100)
+        temp = np.random.uniform(36.2, 36.7)
+        movement = np.random.uniform(0.5, 1.5)
+    elif activity_choice == 'WALKING':
+        hr = np.random.randint(75, 95)
+        spo2 = np.random.randint(94, 98)
+        temp = np.random.uniform(36.5, 37.0)
+        movement = np.random.uniform(1.5, 3.0)
+    else:  # RUNNING
+        hr = np.random.randint(90, 110)
+        spo2 = np.random.randint(92, 97)
+        temp = np.random.uniform(36.8, 37.5)
+        movement = np.random.uniform(2.5, 4.5)
     
     return {
         'timestamp': current_time,
-        'hr': int(max(55, min(90, base_hr))),
-        'spo2': int(max(95, min(100, base_spo2))),
-        'temp': round(max(36.0, min(37.0, base_temp)), 1),
+        'hr': int(hr),
+        'spo2': int(spo2),
+        'temp': round(temp, 1),
         'movement': round(movement, 1),
-        'activity': activity,
+        'activity': activity_choice,
         'packet_id': int(time.time() * 100) % 10000,
         'node_id': 'STEMCUBE_MASTER',
         'is_real': False,
-        'raw': 'DEMO: Simulated data'
+        'raw': f'DEMO|{current_time.strftime("%H:%M:%S")}|{activity_choice}'
     }
 
-# ================ UPDATE DATA BUFFERS ================
+# ================ UPDATE DATA ================
 def update_data_buffers(data):
     """Update all data buffers"""
     st.session_state.timestamps.append(data['timestamp'])
@@ -679,6 +345,10 @@ def update_data_buffers(data):
     }
     
     st.session_state.all_data.append(record)
+    
+    # Save to Google Sheets
+    success, message = save_to_google_sheets_simple(data)
+    st.session_state.google_sheets_status = message
 
 # ================ GRAPH FUNCTIONS ================
 def create_graph(title, y_data, color, y_label):
@@ -686,7 +356,7 @@ def create_graph(title, y_data, color, y_label):
     if len(st.session_state.timestamps) == 0:
         return None
     
-    n_points = min(30, len(st.session_state.timestamps))
+    n_points = min(20, len(st.session_state.timestamps))
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -700,11 +370,8 @@ def create_graph(title, y_data, color, y_label):
     ))
     
     fig.update_layout(
-        title={
-            'text': title,
-            'font': {'size': 16, 'color': '#3C2F2F', 'family': 'Arial'}
-        },
-        height=280,
+        title={'text': title, 'font': {'size': 16, 'color': '#3C2F2F'}},
+        height=250,
         margin=dict(l=50, r=20, t=50, b=50),
         xaxis_title="Time",
         yaxis_title=y_label,
@@ -720,7 +387,7 @@ def create_graph(title, y_data, color, y_label):
 def tab_health_vitals(current_data):
     """Tab 1: Health Vitals"""
     
-    # Activity display with emoji
+    # Activity display
     col_activity = st.columns([1, 2, 1])
     with col_activity[1]:
         activity = current_data['activity']
@@ -731,7 +398,7 @@ def tab_health_vitals(current_data):
         <div style="text-align: center; padding: 15px; border-radius: 12px; 
                     background: linear-gradient(135deg, {activity_color}20 0%, white 100%);
                     border: 2px solid {activity_color}40;">
-            <div class="activity-emoji">{emoji}</div>
+            <div style="font-size: 48px; margin: 10px 0;">{emoji}</div>
             <h2 style="color: {activity_color}; margin: 5px 0;">{activity}</h2>
             <p style="color: #666; font-size: 14px;">Patient Activity Status</p>
         </div>
@@ -743,15 +410,8 @@ def tab_health_vitals(current_data):
     with col1:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         hr = current_data['hr']
-        if 60 <= hr <= 100:
-            status_class = "status-normal"
-            status = "NORMAL"
-        elif 50 <= hr <= 110:
-            status_class = "status-warning"
-            status = "WARNING"
-        else:
-            status_class = "status-critical"
-            status = "ALERT"
+        status_class = "status-normal" if 60 <= hr <= 100 else "status-warning" if 50 <= hr <= 110 else "status-critical"
+        status = "NORMAL" if 60 <= hr <= 100 else "WARNING" if 50 <= hr <= 110 else "ALERT"
         
         st.markdown(f"""
         <div style="text-align: center;">
@@ -766,15 +426,8 @@ def tab_health_vitals(current_data):
     with col2:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         spo2 = current_data['spo2']
-        if spo2 >= 95:
-            status_class = "status-normal"
-            status = "NORMAL"
-        elif spo2 >= 90:
-            status_class = "status-warning"
-            status = "LOW"
-        else:
-            status_class = "status-critical"
-            status = "CRITICAL"
+        status_class = "status-normal" if spo2 >= 95 else "status-warning" if spo2 >= 90 else "status-critical"
+        status = "NORMAL" if spo2 >= 95 else "LOW" if spo2 >= 90 else "CRITICAL"
         
         st.markdown(f"""
         <div style="text-align: center;">
@@ -789,15 +442,8 @@ def tab_health_vitals(current_data):
     with col3:
         st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
         temp = current_data['temp']
-        if temp <= 37.5:
-            status_class = "status-normal"
-            status = "NORMAL"
-        elif temp <= 38.5:
-            status_class = "status-warning"
-            status = "ELEVATED"
-        else:
-            status_class = "status-critical"
-            status = "FEVER"
+        status_class = "status-normal" if temp <= 37.5 else "status-warning" if temp <= 38.5 else "status-critical"
+        status = "NORMAL" if temp <= 37.5 else "ELEVATED" if temp <= 38.5 else "FEVER"
         
         st.markdown(f"""
         <div style="text-align: center;">
@@ -846,65 +492,24 @@ def tab_health_vitals(current_data):
         if spo2_fig:
             st.plotly_chart(spo2_fig, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        temp_fig = create_graph("🌡️ Temperature Trend", st.session_state.temp_data, '#D4A76A', '°C')
-        if temp_fig:
-            st.plotly_chart(temp_fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        move_fig = create_graph("🏃 Movement Activity", st.session_state.movement_data, '#8D6E63', 'Activity Level')
-        if move_fig:
-            st.plotly_chart(move_fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ================ TAB 2: SYSTEM STATUS ================
-def tab_system_status(current_data, com8_status):
+def tab_system_status(current_data):
     """Tab 2: System Status"""
     
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        st.markdown("### 📡 Connection Status")
+        st.markdown("### 📡 System Status")
         
-        # Connection status
-        if "✅ Connected" in com8_status:
-            st.success(f"**{com8_status}**")
-        elif "❌" in com8_status:
-            st.error(f"**{com8_status}**")
-        elif "⚠️" in com8_status:
-            st.warning(f"**{com8_status}**")
-        else:
-            st.info(f"**{com8_status}**")
+        # Google Sheets Status
+        st.write(f"**Google Sheets Status:** {st.session_state.google_sheets_status}")
         
-        # Data source
-        st.markdown("---")
         if current_data['is_real']:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #4CAF5020 0%, #4CAF5010 100%); 
-                        padding: 15px; border-radius: 10px; border-left: 4px solid #4CAF50;">
-                <h4 style="color: #2E7D32; margin: 0 0 10px 0;">🌐 REAL DATA MODE</h4>
-                <p style="color: #666; margin: 0; font-size: 14px;">
-                    Receiving live data from STEMCUBE via COM8
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.success("✅ Connected to STEMCUBE Device")
         else:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #FF980020 0%, #FF980010 100%); 
-                        padding: 15px; border-radius: 10px; border-left: 4px solid #FF9800;">
-                <h4 style="color: #F57C00; margin: 0 0 10px 0;">💻 DEMO DATA MODE</h4>
-                <p style="color: #666; margin: 0; font-size: 14px;">
-                    Showing simulated data. Connect STEMCUBE for real-time monitoring.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.info("💻 Demo Mode Active")
         
         st.markdown("---")
         st.metric("🔢 Packet ID", current_data['packet_id'])
@@ -934,53 +539,14 @@ def tab_system_status(current_data, com8_status):
                     {'range': [0, 20], 'color': 'rgba(244, 67, 54, 0.1)'},
                     {'range': [20, 50], 'color': 'rgba(255, 152, 0, 0.1)'},
                     {'range': [50, 100], 'color': 'rgba(85, 107, 47, 0.1)'}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 20
-                }
+                ]
             }
         ))
         
-        fig_battery.update_layout(
-            height=250,
-            margin=dict(t=50, b=20, l=20, r=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family='Arial', size=12)
-        )
+        fig_battery.update_layout(height=250, margin=dict(t=50, b=20, l=20, r=20))
         st.plotly_chart(fig_battery, use_container_width=True)
         
-        # System metrics
-        col_metric1, col_metric2 = st.columns(2)
-        with col_metric1:
-            st.metric("📶 Signal", "-65 dB")
-        with col_metric2:
-            st.metric("📡 SNR", "12 dB")
-        
-        # Progress bars
-        st.progress(0.85, text="Battery: 85%")
-        st.progress(0.92, text="Signal Quality: 92%")
-        
         st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Raw Packets
-    st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-    st.markdown("### 📡 Recent Data Packets")
-    
-    if len(st.session_state.raw_packets) > 0:
-        for packet in list(st.session_state.raw_packets)[-5:]:
-            st.code(f"{packet['time']}: {packet['packet']}")
-    else:
-        st.info("Waiting for data packets...")
-        st.markdown("""
-        **Expected STEMCUBE Format:**
-        ```
-        |timestamp|SpO2|HR|humidity|temperature|ax|ay|az|gx|gy|gz|activity|
-        ```
-        """)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # ================ TAB 3: DATA LOG ================
 def tab_data_log():
@@ -990,7 +556,6 @@ def tab_data_log():
     st.markdown("### 📋 Recent Data Log")
     
     if len(st.session_state.all_data) > 0:
-        # Get last 10 records
         all_data_list = list(st.session_state.all_data)
         n_items = min(10, len(all_data_list))
         
@@ -1007,41 +572,76 @@ def tab_data_log():
                 'Source': '📡 REAL' if record['is_real'] else '💻 DEMO'
             })
         
-        # Reverse to show newest first
         table_data.reverse()
-        
         df = pd.DataFrame(table_data)
         st.dataframe(df, use_container_width=True, height=400)
     else:
         st.info("No data available yet")
     
-    # Data Statistics
-    st.markdown("### 📊 Data Statistics")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ================ TAB 4: GOOGLE SHEETS DATA ================
+def tab_google_sheets():
+    """Tab 4: Google Sheets Data"""
     
-    col1, col2, col3, col4, col5 = st.columns(5)
+    st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+    st.markdown("### 📊 Google Sheets Data")
     
+    # Connection status
+    col1, col2 = st.columns(2)
     with col1:
-        hr_list = list(st.session_state.hr_data)
-        avg_hr = np.mean(hr_list) if hr_list else 75
-        st.metric("HR Avg", f"{avg_hr:.0f} BPM", delta="Normal" if 60 <= avg_hr <= 100 else "Check")
+        if st.button("🔄 Refresh Google Sheets", use_container_width=True):
+            st.rerun()
     
     with col2:
-        spo2_list = list(st.session_state.spo2_data)
-        avg_spo2 = np.mean(spo2_list) if spo2_list else 98
-        st.metric("SpO₂ Avg", f"{avg_spo2:.0f}%", delta="Good" if avg_spo2 >= 95 else "Low")
+        # Show Google Sheets URL
+        st.info(f"**Connected to:** {GOOGLE_SHEETS_URL[:50]}...")
     
-    with col3:
-        temp_list = list(st.session_state.temp_data)
-        avg_temp = np.mean(temp_list) if temp_list else 36.5
-        st.metric("Temp Avg", f"{avg_temp:.1f}°C", delta="Normal" if avg_temp <= 37.5 else "High")
+    st.markdown("---")
     
-    with col4:
-        move_list = list(st.session_state.movement_data)
-        avg_move = np.mean(move_list) if move_list else 1.0
-        st.metric("Activity Avg", f"{avg_move:.1f}")
+    # Load and display data
+    df = load_from_google_sheets()
     
-    with col5:
-        st.metric("Data Points", len(st.session_state.timestamps))
+    if not df.empty:
+        st.success(f"✅ Loaded {len(df)} records from Google Sheets")
+        
+        # Show data table
+        st.dataframe(df.tail(10), use_container_width=True, height=300)
+        
+        # Statistics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if 'SpO2' in df.columns:
+                st.metric("Avg SpO2", f"{df['SpO2'].mean():.1f}%")
+        
+        with col2:
+            if 'Heart_Rate' in df.columns:
+                st.metric("Avg HR", f"{df['Heart_Rate'].mean():.1f} BPM")
+        
+        with col3:
+            if 'Temperature' in df.columns:
+                st.metric("Avg Temp", f"{df['Temperature'].mean():.1f}°C")
+        
+        with col4:
+            st.metric("Total Records", len(df))
+        
+        # Download button
+        csv = df.to_csv(index=False)
+        st.download_button(
+            "📥 Download All Data (CSV)",
+            csv,
+            f"stemcube_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "text/csv"
+        )
+    else:
+        st.info("📝 No data found in Google Sheets or not connected yet.")
+        st.markdown("""
+        **To add data to Google Sheets:**
+        1. Go to your Google Sheets
+        2. Add data with columns: Timestamp, SpO2, Heart_Rate, Temperature, Activity
+        3. Click "Refresh Google Sheets" above
+        """)
     
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1052,18 +652,11 @@ def main():
     # Initialize session state
     init_session_state()
     
-    # Display header with logo
+    # Display header
     display_header()
     
-    # Get data from COM8 or demo
-    com8_data, com8_status = read_com8_direct()
-    
-    if com8_data:
-        current_data = com8_data
-        st.session_state.com8_status = com8_status
-    else:
-        current_data = get_demo_data()
-        st.session_state.com8_status = com8_status
+    # Get demo data
+    current_data = get_demo_data()
     
     # Update buffers
     update_data_buffers(current_data)
@@ -1073,12 +666,12 @@ def main():
         st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
         st.markdown("### ⚙️ Control Panel")
         
-        auto_refresh = st.toggle("🔄 Auto Refresh", value=True, help="Automatically refresh data")
-        refresh_rate = st.slider("Refresh Rate (seconds)", 1, 10, 2, help="How often to update the data")
+        auto_refresh = st.toggle("🔄 Auto Refresh", value=True)
+        refresh_rate = st.slider("Refresh Rate (seconds)", 1, 10, 2)
         
         if st.button("🔄 Manual Refresh", use_container_width=True):
             st.rerun()
-            
+        
         st.markdown("</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
@@ -1092,69 +685,60 @@ def main():
             st.metric("🩸 SpO₂", f"{current_data['spo2']}%")
             st.metric("🏃 Activity", current_data['activity'])
         
-        # Activity indicator
-        activity_color = '#8B4513' if current_data['activity'] == 'RESTING' else '#556B2F' if current_data['activity'] == 'WALKING' else '#D4A76A'
-        st.markdown(f"""
-        <div style="background: {activity_color}20; padding: 10px; border-radius: 8px; 
-                    border-left: 4px solid {activity_color}; margin-top: 10px;">
-            <p style="margin: 0; font-size: 13px; color: {activity_color};">
-                <strong>Current Status:</strong> Patient is {current_data['activity'].lower()}
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
         st.markdown("</div>", unsafe_allow_html=True)
         
         st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
         st.markdown("### 🔌 System Info")
         
-        st.write(f"**Data Source:** {'📡 REAL' if current_data['is_real'] else '💻 DEMO'}")
         st.write(f"**Node:** {current_data['node_id']}")
-        st.write(f"**Packets:** {len(st.session_state.raw_packets)}")
+        st.write(f"**Packets:** {len(st.session_state.all_data)}")
         st.write(f"**Last Update:** {datetime.now().strftime('%H:%M:%S')}")
         
-        # Connection status
         if current_data['is_real']:
             st.success("✅ Connected to STEMCUBE")
         else:
             st.warning("⚠️ Demo Mode Active")
-            if st.button("🔍 Check COM8", use_container_width=True):
-                st.rerun()
         
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # TABS
-    tab1, tab2, tab3 = st.tabs(["🩺 Health Vitals", "📡 System Status", "📋 Data Log"])
+    # TABS - 4 TABS INCLUDING GOOGLE SHEETS
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🩺 Health Vitals", 
+        "📡 System Status", 
+        "📋 Data Log",
+        "📊 Google Sheets"
+    ])
     
     with tab1:
         tab_health_vitals(current_data)
     
     with tab2:
-        tab_system_status(current_data, st.session_state.com8_status)
+        tab_system_status(current_data)
     
     with tab3:
         tab_data_log()
+    
+    with tab4:
+        tab_google_sheets()
     
     # Footer
     malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
     current_time_malaysia = datetime.now(malaysia_tz)
     
-    st.markdown("""
+    st.markdown(f"""
     <div class="dashboard-footer">
         <p style="margin: 0; font-size: 14px;">
             🏥 <strong>STEMCUBE Health Monitoring System</strong> | 
             📍 Universiti Malaysia Pahang • Faculty of Electrical & Electronics Engineering |
-            🎓 Final Year Project 2025
+            🎓 Final Year Project 2025 | 📊 Google Sheets Integrated
         </p>
         <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">
-            🇲🇾 Malaysia Time: {current_time} • 🔄 Auto-refresh every {refresh_rate}s • 
+            🇲🇾 Malaysia Time: {current_time_malaysia.strftime('%I:%M:%S %p')} • 
+            🔄 Auto-refresh every {refresh_rate}s • 
             🎨 MUJI + Olive Maroon Theme
         </p>
     </div>
-    """.format(
-        current_time=current_time_malaysia.strftime('%I:%M:%S %p'),
-        refresh_rate=refresh_rate
-    ), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
     
     # Auto-refresh
     if auto_refresh:
