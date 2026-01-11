@@ -1,1040 +1,599 @@
-# dashboard_cloud.py - UPDATED WITH LOGO, CORRECT TIME & MUJI THEME
-"""
-REAL-TIME DASHBOARD FOR STEMCUBE
-WITH UMP LOGO, CORRECT TIME & MUJI THEME
-"""
-
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
-import pytz
+import numpy as np
 from collections import deque
-import base64
-from io import BytesIO
+import serial
+import threading
+import queue
+import re
 
-# ================ TRY TO IMPORT SERIAL ================
-try:
-    import serial
-    SERIAL_AVAILABLE = True
-except ImportError:
-    SERIAL_AVAILABLE = False
-
-# ================ PAGE CONFIG ================
+# ========== PAGE CONFIGURATION ==========
 st.set_page_config(
-    page_title="STEMCUBE REAL-TIME MONITOR",
+    page_title="Real-Time Health Monitoring Dashboard",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ================ UMP LOGO BASE64 ================
-UMP_LOGO_BASE64 = """
-iVBORw0KGgoAAAANSUhEUgAAAfQAAABmCAYAAAD3mVZSAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA
-AXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAZdSURBVHgB7d1BbhtHEIDRGRp5/4uyJ5ByYBwY
-wIF9YIC4h6QL2ySbe2d2B1jfRwEESfL/j1/f/vgJAPDavr1/AAD4IkEHAEkEHQCkEXQAkEbQAUAa
-QQcAaQQdAKQRdACQRtABQBpBBwBpBB0ApBF0AJBG0AFAGkE3wOsX3j/xAsA6V2y/Owg6AHh9j85S
-0AFAu6uzFHQA0GrGLAUdALSZNUtBBwAtZs9S0AHAy1bmKOgA4KWr8xN0APCy1fkJOgB4ycoMBR0A
-vGRljoIOAF6wOkdBBwDjrc5R0AHAaKtzFHQA0GLGPAUdAIw2Y56CDgDGmjVPQQcAI82cq6ADgHFm
-zlXQAcAos2cr6ABgjNnzFXQAMMLq+Qo6AFhu9YwFHQAsN3vGgg4Alpo9Z0EHAEvNnrOgA4BlVsxZ
-0AHAEitmLegAYL4VsxZ0ADDXilkLOgCYa9W8BR0AzLNq3oIOAOZZNW9BBwDzrJq3oAOAeVbNW9AB
-wByr5i3oAGCeVfMWdAAwz6p5CzoAmGflzAUdAMyxcuaCDgDmWDlzQQcAc6ycuaADgBlWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
-wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
-9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
-Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
-z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
-XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
-0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AGA9//4HZRl
-AQAt9zY4AAAAAElFTkSuQmCC
-"""
-
-# ================ MUJI + OLIVE MARROON THEME ================
-st.markdown(f"""
+# ========== CUSTOM CSS ==========
+st.markdown("""
 <style>
-    /* MUJI + OLIVE MARROON COLOR PALETTE */
-    :root {{
-        --muji-maroon: #8B4513;
-        --olive-green: #556B2F;
-        --champagne: #F7E7CE;
-        --soft-beige: #F5F5DC;
-        --dark-chocolate: #3C2F2F;
-        --cream: #FFFDD0;
-        --warm-brown: #A0522D;
-        --earth-green: #6B8E23;
-    }}
+    .main {
+        background-color: #f8f9fa;
+    }
     
-    /* MAIN BACKGROUND */
-    .stApp {{
-        background: linear-gradient(135deg, var(--soft-beige) 0%, var(--cream) 100%);
-        font-family: 'Segoe UI', 'Arial', sans-serif;
-    }}
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
     
-    /* HEADER WITH LOGO */
-    .main-header {{
-        background: linear-gradient(135deg, var(--muji-maroon) 0%, var(--olive-green) 100%);
+    /* Header */
+    .dashboard-header {
+        background: linear-gradient(90deg, #2c3e50 0%, #4ca1af 100%);
         color: white;
-        padding: 20px;
+        padding: 25px;
         border-radius: 15px;
         margin-bottom: 25px;
-        box-shadow: 0 6px 20px rgba(139, 69, 19, 0.3);
         text-align: center;
-        position: relative;
-    }}
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
     
-    .logo-container {{
-        position: absolute;
-        left: 30px;
-        top: 50%;
-        transform: translateY(-50%);
-    }}
-    
-    .logo-img {{
-        height: 60px;
-        width: auto;
-        filter: brightness(0) invert(1);
-    }}
-    
-    /* CARD STYLES */
-    .metric-card {{
-        background: linear-gradient(135deg, white 0%, var(--champagne) 100%);
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(85, 107, 47, 0.15);
-        border-left: 4px solid var(--olive-green);
-        margin-bottom: 15px;
-        transition: all 0.3s ease;
-    }}
-    
-    .metric-card:hover {{
-        transform: translateY(-3px);
-        box-shadow: 0 6px 16px rgba(85, 107, 47, 0.2);
-    }}
-    
-    .graph-container {{
+    /* Cards */
+    .metric-card {
         background: white;
         padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
-        border-top: 4px solid var(--muji-maroon);
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #3498db;
         margin-bottom: 20px;
-    }}
+    }
     
-    /* SIDEBAR */
-    .sidebar-section {{
-        background: linear-gradient(135deg, var(--champagne) 0%, white 100%);
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
-        margin-bottom: 20px;
-        border: 2px solid var(--soft-beige);
-    }}
+    .metric-card.critical {
+        border-left: 5px solid #e74c3c;
+        background: #ffeaea;
+    }
     
-    /* TABS */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 5px;
-        background: var(--soft-beige);
-        padding: 5px;
-        border-radius: 10px;
-    }}
+    .metric-card.warning {
+        border-left: 5px solid #f39c12;
+        background: #fff4e6;
+    }
     
-    .stTabs [data-baseweb="tab"] {{
-        background: var(--champagne);
-        border-radius: 8px 8px 0 0;
-        padding: 12px 24px;
-        font-weight: 600;
-        color: var(--dark-chocolate);
-        border: 2px solid transparent;
-        transition: all 0.3s;
-    }}
+    .metric-card.normal {
+        border-left: 5px solid #2ecc71;
+        background: #e8f8f1;
+    }
     
-    .stTabs [aria-selected="true"] {{
-        background: linear-gradient(135deg, var(--muji-maroon) 0%, var(--olive-green) 100%) !important;
-        color: white !important;
-        border-color: var(--muji-maroon) !important;
-    }}
-    
-    /* BUTTONS */
-    .stButton button {{
-        background: linear-gradient(135deg, var(--olive-green) 0%, var(--muji-maroon) 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: 600;
-        transition: all 0.3s;
-    }}
-    
-    .stButton button:hover {{
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
-    }}
-    
-    /* METRICS */
-    .metric-value {{
+    /* Values */
+    .metric-value {
         font-size: 32px;
-        font-weight: 700;
-        color: var(--dark-chocolate);
-        margin: 5px 0;
-    }}
+        font-weight: bold;
+        color: #2c3e50;
+    }
     
-    .metric-label {{
-        font-size: 13px;
-        color: var(--olive-green);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }}
-    
-    /* STATUS INDICATORS */
-    .status-normal {{
-        background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-        color: white;
-        padding: 6px 14px;
-        border-radius: 18px;
-        font-weight: 600;
-        display: inline-block;
-        font-size: 13px;
-    }}
-    
-    .status-warning {{
-        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
-        color: white;
-        padding: 6px 14px;
-        border-radius: 18px;
-        font-weight: 600;
-        display: inline-block;
-        font-size: 13px;
-    }}
-    
-    .status-critical {{
-        background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);
-        color: white;
-        padding: 6px 14px;
-        border-radius: 18px;
-        font-weight: 600;
-        display: inline-block;
-        font-size: 13px;
-    }}
-    
-    /* DATA TABLE */
-    .dataframe {{
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }}
-    
-    .dataframe th {{
-        background: var(--olive-green) !important;
-        color: white !important;
-        font-weight: 600 !important;
-    }}
-    
-    /* FOOTER */
-    .dashboard-footer {{
-        background: linear-gradient(135deg, var(--dark-chocolate) 0%, #2C1810 100%);
-        color: var(--champagne);
-        padding: 20px;
-        border-radius: 12px;
-        margin-top: 30px;
-        text-align: center;
+    .metric-label {
         font-size: 14px;
-    }}
+        color: #7f8c8d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
     
-    /* ACTIVITY EMOJI */
-    .activity-emoji {{
-        font-size: 48px;
-        margin: 10px 0;
-        animation: pulse 2s ease-in-out infinite;
-    }}
+    /* Status badges */
+    .status-badge {
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+        display: inline-block;
+    }
     
-    @keyframes pulse {{
-        0% {{ transform: scale(1); }}
-        50% {{ transform: scale(1.1); }}
-        100% {{ transform: scale(1); }}
-    }}
+    .status-normal {
+        background: #d5f4e6;
+        color: #27ae60;
+    }
+    
+    .status-warning {
+        background: #fdebd0;
+        color: #f39c12;
+    }
+    
+    .status-critical {
+        background: #fadbd8;
+        color: #e74c3c;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ================ INITIALIZE DATA BUFFERS ================
-def init_session_state():
-    """Initialize all session state variables WITH DATA"""
-    if 'initialized' not in st.session_state:
-        st.session_state.initialized = True
-        current_time = datetime.now()
-        
-        # Create INITIAL DATA
-        initial_hr = 75
-        initial_spo2 = 98
-        initial_temp = 36.5
-        initial_movement = 1.0
-        
-        # Initialize with 10 data points
-        st.session_state.hr_data = deque([initial_hr + np.random.normal(0, 3) for _ in range(10)], maxlen=50)
-        st.session_state.spo2_data = deque([initial_spo2 + np.random.normal(0, 1) for _ in range(10)], maxlen=50)
-        st.session_state.temp_data = deque([initial_temp + np.random.normal(0, 0.2) for _ in range(10)], maxlen=50)
-        st.session_state.movement_data = deque([initial_movement + np.random.normal(0, 0.3) for _ in range(10)], maxlen=50)
-        st.session_state.timestamps = deque([current_time - timedelta(seconds=i) for i in range(10)][::-1], maxlen=50)
-        
-        # Raw packets storage
-        st.session_state.raw_packets = deque(maxlen=20)
-        
-        # Store complete data records
-        st.session_state.all_data = deque([
-            {
-                'timestamp': current_time - timedelta(seconds=i),
-                'hr': initial_hr + np.random.normal(0, 3),
-                'spo2': initial_spo2 + np.random.normal(0, 1),
-                'temp': initial_temp + np.random.normal(0, 0.2),
-                'movement': initial_movement + np.random.normal(0, 0.3),
-                'activity': ['RESTING', 'WALKING', 'RUNNING'][i % 3],
-                'is_real': False
-            }
-            for i in range(10)
-        ], maxlen=50)
-        
-        # Connection status
-        st.session_state.com8_status = "Checking..."
-
-# ================ DISPLAY HEADER WITH LOGO ================
-def display_header():
-    """Display header with UMP logo"""
-    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
-    current_time_malaysia = datetime.now(malaysia_tz)
-    
-    # Decode and display logo
-    logo_data = base64.b64decode(UMP_LOGO_BASE64)
-    
-    st.markdown(f"""
-    <div class="main-header">
-        <div class="logo-container">
-            <img src="data:image/png;base64,{UMP_LOGO_BASE64}" class="logo-img">
-        </div>
-        <div style="margin-left: 80px;">
-            <h1 style="margin: 0; font-size: 2.2rem; font-weight: 700;">🏥 STEMCUBE HEALTH MONITORING SYSTEM</h1>
-            <p style="margin: 8px 0 0 0; font-size: 1.1rem; opacity: 0.95;">
-                📍 Universiti Malaysia Pahang • 🎓 Final Year Project 2025
-            </p>
-            <p style="margin: 5px 0 0 0; font-size: 0.95rem; opacity: 0.85;">
-                🇲🇾 Malaysia Time: <strong>{current_time_malaysia.strftime('%I:%M:%S %p')}</strong> • 
-                📅 Date: {current_time_malaysia.strftime('%d %B %Y')}
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ================ SIMPLE COM8 READER ================
-def read_com8_direct():
-    """Read DIRECTLY from COM8"""
-    if not SERIAL_AVAILABLE:
-        return None, "Serial library not installed"
-    
+# ========== DATA PARSING FUNCTIONS ==========
+def parse_health_data(data_string):
+    """Parse health data from string format"""
     try:
-        ser = serial.Serial('COM8', 9600, timeout=0.5)
+        # Parse format: HR:58|SpO2:71|TEMP:9.1|ACT:8.826|MOV:-0.087|NODE:NODE_e661
+        data = {}
         
-        if ser.in_waiting > 0:
-            raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
-            ser.close()
+        # Extract using regex
+        hr_match = re.search(r'HR:([\d\.]+)', data_string)
+        spo2_match = re.search(r'SpO2:([\d\.]+)', data_string)
+        temp_match = re.search(r'TEMP:([\d\.]+)', data_string)
+        act_match = re.search(r'ACT:([\d\.]+)', data_string)
+        mov_match = re.search(r'MOV:([-\d\.]+)', data_string)
+        node_match = re.search(r'NODE:(\w+)', data_string)
+        
+        if hr_match:
+            data['hr'] = float(hr_match.group(1))
+            data['hr'] = max(30, min(data['hr'], 200))  # Clamp to reasonable range
+        else:
+            data['hr'] = 72.0
             
-            if raw_line:
-                # Parse data
-                data = {
-                    'timestamp': datetime.now(),
-                    'hr': 75,
-                    'spo2': 98,
-                    'temp': 36.5,
-                    'movement': 1.0,
-                    'activity': 'RESTING',
-                    'packet_id': int(time.time() * 100) % 10000,
-                    'node_id': 'NODE_e661',
-                    'is_real': True,
-                    'raw': raw_line[:60]
-                }
-                
-                # Parse based on common formats
-                try:
-                    # Format: HR:XX|SpO2:XX|TEMP:XX|ACT:XXX
-                    if '|' in raw_line:
-                        parts = raw_line.split('|')
-                        for part in parts:
-                            if 'HR:' in part:
-                                data['hr'] = int(''.join(filter(str.isdigit, part.split('HR:')[1]))[:3])
-                            elif 'SpO2:' in part:
-                                data['spo2'] = int(''.join(filter(str.isdigit, part.split('SpO2:')[1]))[:3])
-                            elif 'TEMP:' in part:
-                                temp_str = part.split('TEMP:')[1]
-                                data['temp'] = float(''.join([c for c in temp_str if c.isdigit() or c == '.']))
-                            elif 'ACT:' in part:
-                                data['activity'] = part.split('ACT:')[1].strip()
-                    
-                    # Format: XX,XX,XX,XXX
-                    elif ',' in raw_line and ':' not in raw_line:
-                        parts = raw_line.split(',')
-                        if len(parts) >= 4:
-                            data['hr'] = int(parts[0]) if parts[0].isdigit() else 75
-                            data['spo2'] = int(parts[1]) if parts[1].isdigit() else 98
-                            data['temp'] = float(parts[2]) if parts[2].replace('.', '').isdigit() else 36.5
-                            data['activity'] = parts[3]
-                
-                except:
-                    pass
-                
-                # Store raw packet
-                st.session_state.raw_packets.append({
-                    'time': datetime.now().strftime('%H:%M:%S'),
-                    'packet': raw_line[:50]
-                })
-                
-                return data, "✅ Connected to COM8"
+        if spo2_match:
+            data['spo2'] = float(spo2_match.group(1))
+            data['spo2'] = max(70, min(data['spo2'], 100))
+        else:
+            data['spo2'] = 98.0
+            
+        if temp_match:
+            data['temp'] = float(temp_match.group(1))
+            data['temp'] = max(0, min(data['temp'], 50))
+        else:
+            data['temp'] = 25.0
+            
+        if act_match:
+            data['activity'] = float(act_match.group(1))
+        else:
+            data['activity'] = 0.0
+            
+        if mov_match:
+            data['movement'] = float(mov_match.group(1))
+        else:
+            data['movement'] = 0.0
+            
+        if node_match:
+            data['node_id'] = node_match.group(1)
+        else:
+            data['node_id'] = "UNKNOWN"
+            
+        data['timestamp'] = datetime.now()
         
-        ser.close()
-        return None, "⏳ Waiting for COM8 data..."
+        # Determine activity level
+        if data['activity'] < 1.0:
+            data['activity_level'] = "RESTING"
+        elif data['activity'] < 2.0:
+            data['activity_level'] = "WALKING"
+        else:
+            data['activity_level'] = "RUNNING"
+            
+        # Determine status
+        data['hr_status'] = "NORMAL"
+        if data['hr'] > 120:
+            data['hr_status'] = "CRITICAL"
+        elif data['hr'] > 100:
+            data['hr_status'] = "WARNING"
+            
+        data['spo2_status'] = "NORMAL"
+        if data['spo2'] < 90:
+            data['spo2_status'] = "CRITICAL"
+        elif data['spo2'] < 95:
+            data['spo2_status'] = "WARNING"
+            
+        data['temp_status'] = "NORMAL"
+        if data['temp'] > 38.0:
+            data['temp_status'] = "CRITICAL"
+        elif data['temp'] > 37.0:
+            data['temp_status'] = "WARNING"
+            
+        return data
         
-    except serial.SerialException:
-        return None, "❌ COM8 not available"
     except Exception as e:
-        return None, f"⚠️ COM8 error: {str(e)[:40]}"
+        print(f"Error parsing data: {e}")
+        return None
 
-def get_demo_data():
-    """Generate realistic demo data for 6:50 AM"""
-    current_time = datetime.now()
+# ========== SERIAL READER ==========
+class SerialReader:
+    def __init__(self, port='COM8', baudrate=9600):
+        self.port = port
+        self.baudrate = baudrate
+        self.serial_conn = None
+        self.data_queue = queue.Queue()
+        self.running = False
+        self.thread = None
+        
+    def start(self):
+        """Start serial reading thread"""
+        try:
+            self.serial_conn = serial.Serial(
+                port=self.port,
+                baudrate=self.baudrate,
+                timeout=1
+            )
+            self.running = True
+            self.thread = threading.Thread(target=self._read_serial)
+            self.thread.daemon = True
+            self.thread.start()
+            st.success(f"Connected to {self.port} at {self.baudrate} baud")
+            return True
+        except Exception as e:
+            st.error(f"Failed to connect to {self.port}: {e}")
+            return False
     
-    # Morning values (6:50 AM) - typically resting
-    # Realistic morning vitals:
-    # - HR: 60-75 (resting in morning)
-    # - SpO2: 96-99 (normal)
-    # - Temp: 36.3-36.8 (morning temperature)
+    def _read_serial(self):
+        """Read data from serial port"""
+        while self.running:
+            try:
+                if self.serial_conn and self.serial_conn.in_waiting > 0:
+                    line = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
+                    if line and "NODE:" in line:
+                        self.data_queue.put(line)
+            except Exception as e:
+                print(f"Serial read error: {e}")
+                time.sleep(0.1)
     
-    base_hr = 68 + np.random.normal(0, 4)
-    base_spo2 = 97 + np.random.normal(0, 1)
-    base_temp = 36.5 + np.random.normal(0, 0.2)
-    
-    # Morning activity - likely RESTING or light movement
-    activities = ['RESTING', 'RESTING', 'RESTING', 'WALKING']  # 75% resting, 25% walking in morning
-    activity = np.random.choice(activities)
-    
-    if activity == 'RESTING':
-        movement = 0.5 + np.random.random() * 0.5
-        # Adjust HR for resting
-        base_hr = max(60, min(75, base_hr))
-    else:  # WALKING
-        movement = 1.5 + np.random.random() * 1.0
-        base_hr = max(75, min(90, base_hr))
-    
-    return {
-        'timestamp': current_time,
-        'hr': int(max(55, min(90, base_hr))),
-        'spo2': int(max(95, min(100, base_spo2))),
-        'temp': round(max(36.0, min(37.0, base_temp)), 1),
-        'movement': round(movement, 1),
-        'activity': activity,
-        'packet_id': int(time.time() * 100) % 10000,
-        'node_id': 'NODE_e661',
-        'is_real': False,
-        'raw': 'DEMO: Morning vitals (6:50 AM)'
-    }
-
-def update_data_buffers(data):
-    """Update all data buffers"""
-    st.session_state.timestamps.append(data['timestamp'])
-    st.session_state.hr_data.append(data['hr'])
-    st.session_state.spo2_data.append(data['spo2'])
-    st.session_state.temp_data.append(data['temp'])
-    st.session_state.movement_data.append(data['movement'])
-    
-    # Store complete record
-    st.session_state.all_data.append({
-        'timestamp': data['timestamp'],
-        'hr': data['hr'],
-        'spo2': data['spo2'],
-        'temp': data['temp'],
-        'movement': data['movement'],
-        'activity': data['activity'],
-        'is_real': data['is_real']
-    })
-
-# ================ GRAPH FUNCTIONS ================
-def create_graph(title, y_data, color, y_label):
-    """Create a graph with MUJI colors"""
-    if len(st.session_state.timestamps) == 0:
+    def get_data(self):
+        """Get data from queue"""
+        if not self.data_queue.empty():
+            return self.data_queue.get()
         return None
     
-    n_points = min(30, len(st.session_state.timestamps))
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=list(st.session_state.timestamps)[-n_points:],
-        y=list(y_data)[-n_points:],
-        mode='lines+markers',
-        line=dict(color=color, width=3),
-        marker=dict(size=5, color=color),
-        fill='tozeroy',
-        fillcolor=f'rgba{tuple(int(color.lstrip("#")[i:i+2], 16) for i in (0, 2, 4)) + (0.1,)}'
-    ))
-    
-    fig.update_layout(
-        title={
-            'text': title,
-            'font': {'size': 16, 'color': '#3C2F2F', 'family': 'Arial'}
-        },
-        height=280,
-        margin=dict(l=50, r=20, t=50, b=50),
-        xaxis_title="Time",
-        yaxis_title=y_label,
-        plot_bgcolor='rgba(255, 253, 208, 0.1)',
-        paper_bgcolor='white',
-        font=dict(family='Arial', size=12),
-        showlegend=False
-    )
-    
-    return fig
+    def stop(self):
+        """Stop serial reading"""
+        self.running = False
+        if self.serial_conn:
+            self.serial_conn.close()
 
-# ================ TAB 1: HEALTH VITALS ================
-def tab_health_vitals(current_data):
-    """Tab 1: Health Vitals with MUJI theme"""
-    
-    # Activity display with emoji
-    col_activity = st.columns([1, 2, 1])
-    with col_activity[1]:
-        activity = current_data['activity']
-        emoji = "😴" if activity == 'RESTING' else "🚶" if activity == 'WALKING' else "🏃"
-        activity_color = '#8B4513' if activity == 'RESTING' else '#556B2F' if activity == 'WALKING' else '#D4A76A'
-        
-        st.markdown(f"""
-        <div style="text-align: center; padding: 15px; border-radius: 12px; 
-                    background: linear-gradient(135deg, {activity_color}20 0%, white 100%);
-                    border: 2px solid {activity_color}40;">
-            <div class="activity-emoji">{emoji}</div>
-            <h2 style="color: {activity_color}; margin: 5px 0;">{activity}</h2>
-            <p style="color: #666; font-size: 14px;">Patient Activity Status</p>
+# ========== DASHBOARD COMPONENTS ==========
+def display_header():
+    """Display dashboard header"""
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div class="dashboard-header">
+            <h1 style="margin:0; font-size: 2.5rem;">🏥 REAL-TIME HEALTH MONITORING</h1>
+            <p style="margin:10px 0 0 0; font-size: 1.2rem; opacity: 0.9;">
+                Wireless Multi-Node Patient Monitoring System
+            </p>
         </div>
         """, unsafe_allow_html=True)
-    
-    # Current Metrics
+
+def display_metrics(current_data, history_df):
+    """Display health metrics"""
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        hr = current_data['hr']
-        if 60 <= hr <= 100:
-            status_class = "status-normal"
-            status = "NORMAL"
-        elif 50 <= hr <= 110:
-            status_class = "status-warning"
-            status = "WARNING"
-        else:
-            status_class = "status-critical"
-            status = "ALERT"
-        
+        hr_status_class = "critical" if current_data['hr_status'] == "CRITICAL" else "warning" if current_data['hr_status'] == "WARNING" else "normal"
         st.markdown(f"""
-        <div style="text-align: center;">
+        <div class="metric-card {hr_status_class}">
             <div class="metric-label">HEART RATE</div>
-            <div class="metric-value" style="color: {'#4CAF50' if 60 <= hr <= 100 else '#FF9800' if 50 <= hr <= 110 else '#F44336'};">{hr}</div>
-            <div style="font-size: 14px; color: #666; margin: 5px 0;">BPM</div>
-            <div class="{status_class}">{status}</div>
+            <div class="metric-value">{current_data['hr']:.0f} BPM</div>
+            <div class="status-badge status-{current_data['hr_status'].lower()}">{current_data['hr_status']}</div>
+            <div style="margin-top: 10px; font-size: 12px;">
+                📊 Avg: {history_df['hr'].mean():.0f} BPM
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        spo2 = current_data['spo2']
-        if spo2 >= 95:
-            status_class = "status-normal"
-            status = "NORMAL"
-        elif spo2 >= 90:
-            status_class = "status-warning"
-            status = "LOW"
-        else:
-            status_class = "status-critical"
-            status = "CRITICAL"
-        
+        spo2_status_class = "critical" if current_data['spo2_status'] == "CRITICAL" else "warning" if current_data['spo2_status'] == "WARNING" else "normal"
         st.markdown(f"""
-        <div style="text-align: center;">
-            <div class="metric-label">BLOOD OXYGEN</div>
-            <div class="metric-value" style="color: {'#4CAF50' if spo2 >= 95 else '#FF9800' if spo2 >= 90 else '#F44336'};">{spo2}%</div>
-            <div style="font-size: 14px; color: #666; margin: 5px 0;">SpO₂</div>
-            <div class="{status_class}">{status}</div>
+        <div class="metric-card {spo2_status_class}">
+            <div class="metric-label">OXYGEN SATURATION</div>
+            <div class="metric-value">{current_data['spo2']:.0f} %</div>
+            <div class="status-badge status-{current_data['spo2_status'].lower()}">{current_data['spo2_status']}</div>
+            <div style="margin-top: 10px; font-size: 12px;">
+                📊 Avg: {history_df['spo2'].mean():.0f} %
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col3:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        temp = current_data['temp']
-        if temp <= 37.5:
-            status_class = "status-normal"
-            status = "NORMAL"
-        elif temp <= 38.5:
-            status_class = "status-warning"
-            status = "ELEVATED"
-        else:
-            status_class = "status-critical"
-            status = "FEVER"
-        
+        temp_status_class = "critical" if current_data['temp_status'] == "CRITICAL" else "warning" if current_data['temp_status'] == "WARNING" else "normal"
         st.markdown(f"""
-        <div style="text-align: center;">
-            <div class="metric-label">TEMPERATURE</div>
-            <div class="metric-value" style="color: {'#4CAF50' if temp <= 37.5 else '#FF9800' if temp <= 38.5 else '#F44336'};">{temp}°C</div>
-            <div style="font-size: 14px; color: #666; margin: 5px 0;">Body Temp</div>
-            <div class="{status_class}">{status}</div>
+        <div class="metric-card {temp_status_class}">
+            <div class="metric-label">BODY TEMPERATURE</div>
+            <div class="metric-value">{current_data['temp']:.1f} °C</div>
+            <div class="status-badge status-{current_data['temp_status'].lower()}">{current_data['temp_status']}</div>
+            <div style="margin-top: 10px; font-size: 12px;">
+                📊 Avg: {history_df['temp'].mean():.1f} °C
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col4:
-        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
-        movement = current_data['movement']
+        activity_color = "#2ecc71" if current_data['activity_level'] == "RESTING" else "#f39c12" if current_data['activity_level'] == "WALKING" else "#e74c3c"
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">ACTIVITY LEVEL</div>
+            <div class="metric-value" style="color: {activity_color};">{current_data['activity_level']}</div>
+            <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
+                Intensity: {current_data['activity']:.2f}
+            </div>
+            <div style="font-size: 12px; margin-top: 5px;">
+                Movement: {current_data['movement']:.3f} g
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def display_charts(history_df):
+    """Display charts"""
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📈 Vital Signs Trend")
+        
+        if len(history_df) > 1:
+            fig = go.Figure()
+            
+            # Heart Rate
+            fig.add_trace(go.Scatter(
+                x=history_df['timestamp'],
+                y=history_df['hr'],
+                name='Heart Rate (BPM)',
+                line=dict(color='#e74c3c', width=2),
+                yaxis='y1'
+            ))
+            
+            # SpO2
+            fig.add_trace(go.Scatter(
+                x=history_df['timestamp'],
+                y=history_df['spo2'],
+                name='SpO2 (%)',
+                line=dict(color='#3498db', width=2),
+                yaxis='y2'
+            ))
+            
+            fig.update_layout(
+                yaxis=dict(title='Heart Rate (BPM)', titlefont=dict(color='#e74c3c')),
+                yaxis2=dict(title='SpO2 (%)', titlefont=dict(color='#3498db'),
+                           overlaying='y', side='right'),
+                hovermode='x unified',
+                height=300,
+                margin=dict(l=20, r=50, t=30, b=20),
+                plot_bgcolor='rgba(240, 240, 240, 0.1)',
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.subheader("🌡️ Temperature & Activity")
+        
+        if len(history_df) > 1:
+            fig = go.Figure()
+            
+            # Temperature
+            fig.add_trace(go.Scatter(
+                x=history_df['timestamp'],
+                y=history_df['temp'],
+                name='Temperature (°C)',
+                line=dict(color='#e67e22', width=2),
+                yaxis='y1'
+            ))
+            
+            # Activity
+            fig.add_trace(go.Scatter(
+                x=history_df['timestamp'],
+                y=history_df['activity'],
+                name='Activity Level',
+                line=dict(color='#9b59b6', width=2),
+                yaxis='y2',
+                fill='tozeroy',
+                fillcolor='rgba(155, 89, 182, 0.1)'
+            ))
+            
+            fig.update_layout(
+                yaxis=dict(title='Temperature (°C)', titlefont=dict(color='#e67e22')),
+                yaxis2=dict(title='Activity Level', titlefont=dict(color='#9b59b6'),
+                           overlaying='y', side='right'),
+                hovermode='x unified',
+                height=300,
+                margin=dict(l=20, r=50, t=30, b=20),
+                plot_bgcolor='rgba(240, 240, 240, 0.1)',
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+
+def display_node_info(current_data, history_df):
+    """Display node information and alerts"""
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("📱 Device Information")
         
         st.markdown(f"""
-        <div style="text-align: center;">
-            <div class="metric-label">MOVEMENT</div>
-            <div class="metric-value" style="color: #8D6E63;">{movement}</div>
-            <div style="font-size: 14px; color: #666; margin: 5px 0;">Activity Level</div>
-            <div style="margin-top: 10px;">
-                <div style="background: #F5F5DC; height: 8px; border-radius: 4px; overflow: hidden;">
-                    <div style="background: linear-gradient(90deg, #556B2F, #8B4513); 
-                                width: {min(100, movement * 20)}%; height: 100%;"></div>
+        <div class="metric-card">
+            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                <div style="font-size: 24px; margin-right: 10px;">📱</div>
+                <div>
+                    <div style="font-weight: bold; font-size: 18px;">{current_data['node_id']}</div>
+                    <div style="color: #7f8c8d; font-size: 14px;">Wearable Health Monitor</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>Data Points:</span>
+                    <span style="font-weight: bold;">{len(history_df)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>Last Update:</span>
+                    <span style="font-weight: bold;">{current_data['timestamp'].strftime('%H:%M:%S')}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Connection:</span>
+                    <span style="color: #27ae60; font-weight: bold;">● LIVE</span>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Real-time Graphs
-    st.markdown("### 📈 Real-time Monitoring")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        hr_fig = create_graph("❤️ Heart Rate Trend", st.session_state.hr_data, '#8B4513', 'BPM')
-        if hr_fig:
-            st.plotly_chart(hr_fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        spo2_fig = create_graph("🩸 Blood Oxygen Trend", st.session_state.spo2_data, '#556B2F', 'SpO₂ %')
-        if spo2_fig:
-            st.plotly_chart(spo2_fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        temp_fig = create_graph("🌡️ Temperature Trend", st.session_state.temp_data, '#D4A76A', '°C')
-        if temp_fig:
-            st.plotly_chart(temp_fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        move_fig = create_graph("🏃 Movement Activity", st.session_state.movement_data, '#8D6E63', 'Activity Level')
-        if move_fig:
-            st.plotly_chart(move_fig, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# ================ TAB 2: SYSTEM STATUS ================
-def tab_system_status(current_data, com8_status):
-    """Tab 2: System Status"""
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        st.markdown("### 📡 Connection Status")
+        st.subheader("⚠️ Alerts & Notifications")
         
-        # Connection status with icon
-        if "✅ Connected" in com8_status:
-            st.success(f"**{com8_status}**")
-            st.balloons()
-        elif "❌" in com8_status:
-            st.error(f"**{com8_status}**")
-        elif "⚠️" in com8_status:
-            st.warning(f"**{com8_status}**")
+        alerts = []
+        
+        if current_data['hr_status'] == "CRITICAL":
+            alerts.append(("🚨 Critical Heart Rate", f"Heart rate is critically high at {current_data['hr']:.0f} BPM", "critical"))
+        elif current_data['hr_status'] == "WARNING":
+            alerts.append(("⚠️ Elevated Heart Rate", f"Heart rate is elevated at {current_data['hr']:.0f} BPM", "warning"))
+            
+        if current_data['spo2_status'] == "CRITICAL":
+            alerts.append(("🚨 Low Oxygen", f"SpO2 is critically low at {current_data['spo2']:.0f}%", "critical"))
+        elif current_data['spo2_status'] == "WARNING":
+            alerts.append(("⚠️ Low Oxygen", f"SpO2 is low at {current_data['spo2']:.0f}%", "warning"))
+            
+        if current_data['temp_status'] == "CRITICAL":
+            alerts.append(("🚨 High Temperature", f"Temperature is critically high at {current_data['temp']:.1f}°C", "critical"))
+        elif current_data['temp_status'] == "WARNING":
+            alerts.append(("⚠️ Elevated Temperature", f"Temperature is elevated at {current_data['temp']:.1f}°C", "warning"))
+        
+        if alerts:
+            for alert_title, alert_msg, alert_type in alerts:
+                alert_color = "#e74c3c" if alert_type == "critical" else "#f39c12"
+                st.markdown(f"""
+                <div style="background: {'#ffeaea' if alert_type == 'critical' else '#fff4e6'}; 
+                          padding: 15px; border-radius: 10px; border-left: 5px solid {alert_color};
+                          margin-bottom: 10px;">
+                    <div style="font-weight: bold; color: {alert_color}; margin-bottom: 5px;">
+                        {alert_title}
+                    </div>
+                    <div style="color: #2c3e50;">
+                        {alert_msg}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            st.info(f"**{com8_status}**")
-        
-        # Data source indicator
-        st.markdown("---")
-        if current_data['is_real']:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #4CAF5020 0%, #4CAF5010 100%); 
-                        padding: 15px; border-radius: 10px; border-left: 4px solid #4CAF50;">
-                <h4 style="color: #2E7D32; margin: 0 0 10px 0;">🌐 REAL DATA MODE</h4>
-                <p style="color: #666; margin: 0; font-size: 14px;">
-                    Receiving live data from STEMCUBE Master via COM8
-                </p>
+            st.markdown(f"""
+            <div style="background: #e8f8f1; padding: 30px; border-radius: 10px; text-align: center; border: 2px dashed #2ecc71;">
+                <div style="font-size: 48px; color: #27ae60; margin-bottom: 10px;">✓</div>
+                <div style="font-size: 18px; color: #27ae60; font-weight: bold;">All Systems Normal</div>
+                <div style="color: #7f8c8d; margin-top: 10px;">No critical alerts detected</div>
             </div>
             """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #FF980020 0%, #FF980010 100%); 
-                        padding: 15px; border-radius: 10px; border-left: 4px solid #FF9800;">
-                <h4 style="color: #F57C00; margin: 0 0 10px 0;">💻 DEMO DATA MODE</h4>
-                <p style="color: #666; margin: 0; font-size: 14px;">
-                    Showing simulated data. Connect STEMCUBE for real-time monitoring.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        st.metric("🔢 Packet ID", current_data['packet_id'])
-        st.metric("📟 Node ID", current_data['node_id'])
-        st.metric("⏰ Last Update", datetime.now().strftime('%H:%M:%S'))
-        
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-        st.markdown("### 🔋 System Health")
-        
-        # Battery gauge with MUJI colors
-        battery = 85
-        fig_battery = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=battery,
-            title={'text': "Battery Level", 'font': {'size': 16, 'color': '#3C2F2F'}},
-            number={'suffix': "%", 'font': {'size': 28, 'color': '#8B4513'}},
-            gauge={
-                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#3C2F2F'},
-                'bar': {'color': '#556B2F'},
-                'bgcolor': "white",
-                'borderwidth': 2,
-                'bordercolor': "#F7E7CE",
-                'steps': [
-                    {'range': [0, 20], 'color': 'rgba(244, 67, 54, 0.1)'},
-                    {'range': [20, 50], 'color': 'rgba(255, 152, 0, 0.1)'},
-                    {'range': [50, 100], 'color': 'rgba(85, 107, 47, 0.1)'}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 20
-                }
-            }
-        ))
-        
-        fig_battery.update_layout(
-            height=250,
-            margin=dict(t=50, b=20, l=20, r=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(family='Arial', size=12)
-        )
-        st.plotly_chart(fig_battery, use_container_width=True)
-        
-        # System metrics
-        col_metric1, col_metric2 = st.columns(2)
-        with col_metric1:
-            st.metric("📶 Signal", "-65 dB")
-        with col_metric2:
-            st.metric("📡 SNR", "12 dB")
-        
-        # Progress bars
-        st.progress(0.85, text="Battery: 85%")
-        st.progress(0.92, text="Signal Quality: 92%")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Raw Packets
-    st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-    st.markdown("### 📡 Recent Data Packets")
-    
-    if len(st.session_state.raw_packets) > 0:
-        for packet in list(st.session_state.raw_packets)[-5:]:
-            st.code(f"{packet['time']}: {packet['packet']}")
-    else:
-        st.info("Waiting for data packets...")
-        # Show sample format
-        st.markdown("""
-        **Expected STEMCUBE Format:**
-        ```
-        HR:72|SpO2:98|TEMP:36.5|ACT:RESTING|BAT:85
-        ```
-        """)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
 
-# ================ TAB 3: DATA LOG ================
-def tab_data_log():
-    """Tab 3: Data Log"""
-    
-    st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
-    st.markdown("### 📋 Recent Data Log")
-    
-    if len(st.session_state.all_data) > 0:
-        # Get last 10 records
-        all_data_list = list(st.session_state.all_data)
-        n_items = min(10, len(all_data_list))
-        
-        table_data = []
-        for i in range(1, n_items + 1):
-            record = all_data_list[-i]
-            table_data.append({
-                'Time': record['timestamp'].strftime('%H:%M:%S'),
-                'HR': record['hr'],
-                'SpO₂': record['spo2'],
-                'Temp': f"{record['temp']:.1f}°C",
-                'Movement': f"{record['movement']:.1f}",
-                'Activity': record['activity'],
-                'Source': '📡 REAL' if record['is_real'] else '💻 DEMO'
-            })
-        
-        # Reverse to show newest first
-        table_data.reverse()
-        
-        df = pd.DataFrame(table_data)
-        st.dataframe(df, use_container_width=True, height=400)
-    else:
-        st.info("No data available yet")
-    
-    # Data Statistics
-    st.markdown("### 📊 Data Statistics")
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    with col1:
-        hr_list = list(st.session_state.hr_data)
-        avg_hr = np.mean(hr_list) if hr_list else 75
-        st.metric("HR Avg", f"{avg_hr:.0f} BPM", delta="Normal" if 60 <= avg_hr <= 100 else "Check")
-    
-    with col2:
-        spo2_list = list(st.session_state.spo2_data)
-        avg_spo2 = np.mean(spo2_list) if spo2_list else 98
-        st.metric("SpO₂ Avg", f"{avg_spo2:.0f}%", delta="Good" if avg_spo2 >= 95 else "Low")
-    
-    with col3:
-        temp_list = list(st.session_state.temp_data)
-        avg_temp = np.mean(temp_list) if temp_list else 36.5
-        st.metric("Temp Avg", f"{avg_temp:.1f}°C", delta="Normal" if avg_temp <= 37.5 else "High")
-    
-    with col4:
-        move_list = list(st.session_state.movement_data)
-        avg_move = np.mean(move_list) if move_list else 1.0
-        st.metric("Activity Avg", f"{avg_move:.1f}")
-    
-    with col5:
-        st.metric("Data Points", len(st.session_state.timestamps))
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ================ MAIN DASHBOARD ================
+# ========== MAIN DASHBOARD ==========
 def main():
-    """Main dashboard function"""
-    
     # Initialize session state
-    init_session_state()
+    if 'history' not in st.session_state:
+        st.session_state.history = deque(maxlen=100)  # Store last 100 readings
+    if 'serial_reader' not in st.session_state:
+        st.session_state.serial_reader = None
+    if 'current_data' not in st.session_state:
+        st.session_state.current_data = {
+            'hr': 72.0, 'spo2': 98.0, 'temp': 25.0,
+            'activity': 0.0, 'movement': 0.0,
+            'node_id': 'NODE_e661',
+            'timestamp': datetime.now(),
+            'hr_status': 'NORMAL',
+            'spo2_status': 'NORMAL',
+            'temp_status': 'NORMAL',
+            'activity_level': 'RESTING'
+        }
     
-    # Display header with logo
+    # Display header
     display_header()
     
-    # Get data from COM8 or demo
-    com8_data, com8_status = read_com8_direct()
-    
-    if com8_data:
-        current_data = com8_data
-        st.session_state.com8_status = com8_status
-    else:
-        current_data = get_demo_data()
-        st.session_state.com8_status = com8_status
-    
-    # Update buffers
-    update_data_buffers(current_data)
-    
-    # Sidebar
+    # Sidebar for configuration
     with st.sidebar:
-        st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
-        st.markdown("### ⚙️ Control Panel")
-        
-        auto_refresh = st.toggle("🔄 Auto Refresh", value=True, help="Automatically refresh data every few seconds")
-        refresh_rate = st.slider("Refresh Rate (seconds)", 1, 10, 2, help="How often to update the data")
-        
-        if st.button("🔄 Manual Refresh", use_container_width=True):
-            st.rerun()
-            
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
-        st.markdown("### 📊 Current Readings")
-        
-        col_sb1, col_sb2 = st.columns(2)
-        with col_sb1:
-            st.metric("❤️ HR", f"{current_data['hr']} BPM")
-            st.metric("🌡️ Temp", f"{current_data['temp']:.1f}°C")
-        with col_sb2:
-            st.metric("🩸 SpO₂", f"{current_data['spo2']}%")
-            st.metric("🏃 Activity", current_data['activity'])
-        
-        # Activity indicator
-        activity_color = '#8B4513' if current_data['activity'] == 'RESTING' else '#556B2F' if current_data['activity'] == 'WALKING' else '#D4A76A'
-        st.markdown(f"""
-        <div style="background: {activity_color}20; padding: 10px; border-radius: 8px; 
-                    border-left: 4px solid {activity_color}; margin-top: 10px;">
-            <p style="margin: 0; font-size: 13px; color: {activity_color};">
-                <strong>Current Status:</strong> Patient is {current_data['activity'].lower()}
-            </p>
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 30px;">
+            <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">⚙️ SETTINGS</div>
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Serial port configuration
+        st.subheader("Serial Connection")
+        port = st.selectbox("COM Port", ["COM8", "COM3", "COM4", "COM5", "COM6", "COM7"])
+        baudrate = st.selectbox("Baud Rate", [9600, 115200, 57600, 38400, 19200])
         
-        st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
-        st.markdown("### 🔌 System Info")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔗 Connect", use_container_width=True):
+                if st.session_state.serial_reader:
+                    st.session_state.serial_reader.stop()
+                st.session_state.serial_reader = SerialReader(port=port, baudrate=baudrate)
+                if st.session_state.serial_reader.start():
+                    st.rerun()
         
-        st.write(f"**Data Source:** {'📡 REAL' if current_data['is_real'] else '💻 DEMO'}")
-        st.write(f"**Node:** {current_data['node_id']}")
-        st.write(f"**Packets:** {len(st.session_state.raw_packets)}")
-        st.write(f"**Last Update:** {datetime.now().strftime('%H:%M:%S')}")
+        with col2:
+            if st.button("🔴 Disconnect", use_container_width=True):
+                if st.session_state.serial_reader:
+                    st.session_state.serial_reader.stop()
+                    st.session_state.serial_reader = None
+                    st.success("Disconnected")
+                    st.rerun()
         
-        # Connection status
-        if current_data['is_real']:
-            st.success("✅ Connected to STEMCUBE")
+        st.divider()
+        
+        # Dashboard settings
+        st.subheader("Display Settings")
+        history_length = st.slider("History Length (seconds)", 30, 300, 60)
+        update_interval = st.slider("Update Interval (ms)", 100, 2000, 500)
+        
+        st.divider()
+        
+        # Simulated data option
+        st.subheader("Test Mode")
+        use_simulated = st.checkbox("Use Simulated Data", value=False)
+        
+        if use_simulated:
+            st.info("Using simulated data for testing")
+        
+        st.divider()
+        
+        # System info
+        st.subheader("System Status")
+        st.metric("Data Points", len(st.session_state.history))
+        if st.session_state.serial_reader and st.session_state.serial_reader.running:
+            st.success("Connected to serial")
         else:
-            st.warning("⚠️ Demo Mode Active")
-            if st.button("🔍 Check COM8", use_container_width=True):
-                st.rerun()
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.warning("Not connected to serial")
     
-    # TABS
-    tab1, tab2, tab3 = st.tabs(["🩺 Health Vitals", "📡 System Status", "📋 Data Log"])
+    # Main content area
+    if use_simulated:
+        # Generate simulated data
+        import random
+        simulated_data = {
+            'hr': 70 + random.randint(-10, 20),
+            'spo2': 97 + random.randint(-2, 2),
+            'temp': 36.5 + random.uniform(-0.5, 0.5),
+            'activity': random.uniform(0, 3),
+            'movement': random.uniform(-0.5, 0.5),
+            'node_id': 'NODE_e661',
+            'timestamp': datetime.now()
+        }
+        parsed_data = parse_health_data(
+            f"HR:{simulated_data['hr']}|SpO2:{simulated_data['spo2']}|TEMP:{simulated_data['temp']}|"
+            f"ACT:{simulated_data['activity']}|MOV:{simulated_data['movement']}|NODE:{simulated_data['node_id']}"
+        )
+        if parsed_data:
+            st.session_state.current_data = parsed_data
+            st.session_state.history.append(parsed_data)
     
-    with tab1:
-        tab_health_vitals(current_data)
+    elif st.session_state.serial_reader and st.session_state.serial_reader.running:
+        # Read real data from serial
+        raw_data = st.session_state.serial_reader.get_data()
+        if raw_data:
+            parsed_data = parse_health_data(raw_data)
+            if parsed_data:
+                st.session_state.current_data = parsed_data
+                st.session_state.history.append(parsed_data)
     
-    with tab2:
-        tab_system_status(current_data, st.session_state.com8_status)
+    # Convert history to DataFrame for charts
+    history_df = pd.DataFrame(list(st.session_state.history))
     
-    with tab3:
-        tab_data_log()
+    # Display metrics
+    display_metrics(st.session_state.current_data, history_df)
     
-    # Footer
-    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
-    current_time_malaysia = datetime.now(malaysia_tz)
+    # Display charts
+    display_charts(history_df)
     
-    st.markdown("""
-    <div class="dashboard-footer">
-        <p style="margin: 0; font-size: 14px;">
-            🏥 <strong>STEMCUBE Health Monitoring System</strong> | 
-            📍 Universiti Malaysia Pahang • Faculty of Electrical & Electronics Engineering |
-            🎓 Final Year Project 2025
-        </p>
-        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">
-            🇲🇾 Malaysia Time: {current_time} • 🔄 Auto-refresh every {refresh_rate}s • 
-            🎨 MUJI + Olive Maroon Theme
-        </p>
-    </div>
-    """.format(
-        current_time=current_time_malaysia.strftime('%I:%M:%S %p'),
-        refresh_rate=refresh_rate
-    ), unsafe_allow_html=True)
+    # Display node info and alerts
+    display_node_info(st.session_state.current_data, history_df)
     
     # Auto-refresh
-    if auto_refresh:
-        time.sleep(refresh_rate)
-        st.rerun()
+    time.sleep(update_interval / 1000.0)
+    st.rerun()
 
-# ================ RUN DASHBOARD ================
 if __name__ == "__main__":
     main()
