@@ -8,7 +8,7 @@ import numpy as np
 from collections import deque
 import json
 import os
-import requests  # For API calls if needed
+import requests
 
 # ========== PAGE CONFIGURATION ==========
 st.set_page_config(
@@ -102,42 +102,13 @@ st.markdown("""
         background: #fadbd8;
         color: #e74c3c;
     }
-    
-    /* Data source indicator */
-    .data-source-real {
-        background: #d5f4e6;
-        color: #27ae60;
-        padding: 5px 10px;
-        border-radius: 10px;
-        font-size: 12px;
-        font-weight: bold;
-    }
-    
-    .data-source-sim {
-        background: #fdebd0;
-        color: #f39c12;
-        padding: 5px 10px;
-        border-radius: 10px;
-        font-size: 12px;
-        font-weight: bold;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ========== DATA LOADING FUNCTIONS ==========
 def load_health_data():
-    """Load health data - for Streamlit Cloud, we'll use simulated data or API"""
-    # On Streamlit Cloud, we can't access local files directly
-    # So we'll use simulation mode or fetch from an API
-    
+    """Load health data - for Streamlit Cloud, we'll use simulated data"""
     try:
-        # OPTION 1: Try to load from a URL (if you have an API)
-        # api_url = "https://your-api.com/health-data"
-        # response = requests.get(api_url, timeout=5)
-        # if response.status_code == 200:
-        #     return response.json()
-        
-        # OPTION 2: Use built-in simulation for Streamlit Cloud
         current_time = datetime.now()
         
         # Generate simulation data for cloud
@@ -146,18 +117,18 @@ def load_health_data():
         return {
             'status': 'connected',
             'last_update': current_time.isoformat(),
-            'is_real_data': False,  # On cloud, it's always simulation
+            'is_real_data': False,
             'data_source': 'STREAMLIT_CLOUD_SIMULATION',
             'parsed_success': True,
             'data': simulation_data
         }
         
     except Exception as e:
-        st.error(f"Error loading data: {e}")
         # Fallback to basic simulation
+        current_time = datetime.now()
         return {
             'status': 'disconnected',
-            'last_update': datetime.now().isoformat(),
+            'last_update': current_time.isoformat(),
             'is_real_data': False,
             'data_source': 'FALLBACK_SIMULATION',
             'parsed_success': False,
@@ -166,8 +137,8 @@ def load_health_data():
                 'activity_level': 'RESTING',
                 'movement': 0.0,
                 'node_id': 'NODE_e661',
-                'timestamp': datetime.now().isoformat(),
-                'malaysia_time': datetime.now().strftime('%H:%M:%S'),
+                'timestamp': current_time.isoformat(),
+                'malaysia_time': current_time.strftime('%H:%M:%S'),
                 'hr_status': 'NORMAL',
                 'spo2_status': 'NORMAL',
                 'temp_status': 'NORMAL',
@@ -179,26 +150,25 @@ def generate_simulation_data():
     """Generate realistic simulation data for Streamlit Cloud"""
     current_time = datetime.now()
     
-    # Cycle through different activities
-    activity_cycle = ['RESTING', 'WALKING', 'RUNNING']
-    cycle_index = (int(time.time()) // 10) % 3  # Change every 10 seconds
+    # Get current seconds to cycle activities
+    current_second = int(time.time()) % 30  # Cycle every 30 seconds
     
-    activity = activity_cycle[cycle_index]
-    
-    # Base values for each activity
-    if activity == 'RESTING':
+    if current_second < 10:
+        activity = 'RESTING'
         hr = 65 + np.random.randint(-5, 6)
         spo2 = 97 + np.random.randint(-1, 2)
         temp = 36.5 + np.random.uniform(-0.2, 0.2)
         movement = np.random.uniform(0.0, 0.3)
         activity_score = np.random.uniform(0.0, 1.0)
-    elif activity == 'WALKING':
+    elif current_second < 20:
+        activity = 'WALKING'
         hr = 85 + np.random.randint(-10, 11)
         spo2 = 96 + np.random.randint(-2, 1)
         temp = 36.8 + np.random.uniform(-0.3, 0.3)
         movement = np.random.uniform(0.5, 1.5)
         activity_score = np.random.uniform(1.5, 3.0)
-    else:  # RUNNING
+    else:
+        activity = 'RUNNING'
         hr = 115 + np.random.randint(-15, 16)
         spo2 = 94 + np.random.randint(-3, 1)
         temp = 37.2 + np.random.uniform(-0.4, 0.4)
@@ -225,19 +195,19 @@ def generate_simulation_data():
         temp_status = "WARNING"
     
     return {
-        'hr': hr,
-        'spo2': spo2,
-        'temp': temp,
+        'hr': int(hr),
+        'spo2': int(spo2),
+        'temp': float(f"{temp:.1f}"),
         'activity_level': activity,
-        'movement': movement,
-        'activity': activity_score,
+        'movement': float(f"{movement:.3f}"),
+        'activity': float(f"{activity_score:.2f}"),
         'node_id': 'NODE_e661',
         'timestamp': current_time.isoformat(),
         'malaysia_time': current_time.strftime('%H:%M:%S'),
         'hr_status': hr_status,
         'spo2_status': spo2_status,
         'temp_status': temp_status,
-        'confidence': np.random.uniform(0.85, 0.99),
+        'confidence': float(f"{np.random.uniform(0.85, 0.99):.2f}"),
         'battery': 85,
         'rssi': -65
     }
@@ -275,13 +245,15 @@ def display_metrics(current_data, history_df, is_real_data):
     with col1:
         hr_status = current_data.get('hr_status', 'NORMAL')
         hr_status_class = "critical" if hr_status == "CRITICAL" else "warning" if hr_status == "WARNING" else "normal"
+        hr_value = current_data.get('hr', 72)
+        hr_avg = history_df['hr'].mean() if not history_df.empty and 'hr' in history_df.columns else hr_value
         st.markdown(f"""
         <div class="metric-card {hr_status_class}">
             <div class="metric-label">HEART RATE</div>
-            <div class="metric-value">{current_data.get('hr', 72):.0f} BPM</div>
+            <div class="metric-value">{hr_value:.0f} BPM</div>
             <div class="status-badge status-{hr_status.lower()}">{hr_status}</div>
             <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                📊 Avg: {history_df['hr'].mean():.0f} BPM
+                📊 Avg: {hr_avg:.0f} BPM
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -289,13 +261,15 @@ def display_metrics(current_data, history_df, is_real_data):
     with col2:
         spo2_status = current_data.get('spo2_status', 'NORMAL')
         spo2_status_class = "critical" if spo2_status == "CRITICAL" else "warning" if spo2_status == "WARNING" else "normal"
+        spo2_value = current_data.get('spo2', 98)
+        spo2_avg = history_df['spo2'].mean() if not history_df.empty and 'spo2' in history_df.columns else spo2_value
         st.markdown(f"""
         <div class="metric-card {spo2_status_class}">
             <div class="metric-label">OXYGEN SATURATION</div>
-            <div class="metric-value">{current_data.get('spo2', 98):.0f} %</div>
+            <div class="metric-value">{spo2_value:.0f} %</div>
             <div class="status-badge status-{spo2_status.lower()}">{spo2_status}</div>
             <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                📊 Avg: {history_df['spo2'].mean():.0f} %
+                📊 Avg: {spo2_avg:.0f} %
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -303,13 +277,15 @@ def display_metrics(current_data, history_df, is_real_data):
     with col3:
         temp_status = current_data.get('temp_status', 'NORMAL')
         temp_status_class = "critical" if temp_status == "CRITICAL" else "warning" if temp_status == "WARNING" else "normal"
+        temp_value = current_data.get('temp', 36.5)
+        temp_avg = history_df['temp'].mean() if not history_df.empty and 'temp' in history_df.columns else temp_value
         st.markdown(f"""
         <div class="metric-card {temp_status_class}">
             <div class="metric-label">BODY TEMPERATURE</div>
-            <div class="metric-value">{current_data.get('temp', 36.5):.1f} °C</div>
+            <div class="metric-value">{temp_value:.1f} °C</div>
             <div class="status-badge status-{temp_status.lower()}">{temp_status}</div>
             <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                📊 Avg: {history_df['temp'].mean():.1f} °C
+                📊 Avg: {temp_avg:.1f} °C
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -317,99 +293,121 @@ def display_metrics(current_data, history_df, is_real_data):
     with col4:
         activity_level = current_data.get('activity_level', 'RESTING')
         activity_color = "#2ecc71" if activity_level == "RESTING" else "#f39c12" if activity_level == "WALKING" else "#e74c3c"
+        activity_value = current_data.get('activity', 0.0)
+        movement_value = current_data.get('movement', 0.0)
+        confidence_value = current_data.get('confidence', 0.95)
+        
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">ACTIVITY LEVEL</div>
             <div class="metric-value" style="color: {activity_color};">{activity_level}</div>
             <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
-                Intensity: {current_data.get('activity', 0.0):.2f}
+                Intensity: {activity_value:.2f}
             </div>
             <div style="font-size: 12px; margin-top: 5px; color: #7f8c8d;">
-                Movement: {current_data.get('movement', 0.0):.3f} g
+                Movement: {movement_value:.3f} g
             </div>
-            {f'<div style="font-size: 12px; margin-top: 5px; color: #9b59b6;">🎯 ML Confidence: {current_data.get("confidence", 0.95):.2f}</div>' if 'confidence' in current_data else ''}
+            <div style="font-size: 12px; margin-top: 5px; color: #9b59b6;">
+                🎯 ML Confidence: {confidence_value:.2f}
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
 def display_charts(history_df):
-    """Display charts"""
+    """Display charts with error handling"""
     col1, col2 = st.columns(2)
     
     with col1:
         st.subheader("📈 Vital Signs Trend")
         
-        if len(history_df) > 1:
-            fig = go.Figure()
-            
-            # Heart Rate
-            fig.add_trace(go.Scatter(
-                x=history_df['timestamp'],
-                y=history_df['hr'],
-                name='Heart Rate (BPM)',
-                line=dict(color='#e74c3c', width=2),
-                yaxis='y1'
-            ))
-            
-            # SpO2
-            fig.add_trace(go.Scatter(
-                x=history_df['timestamp'],
-                y=history_df['spo2'],
-                name='SpO2 (%)',
-                line=dict(color='#3498db', width=2),
-                yaxis='y2'
-            ))
-            
-            fig.update_layout(
-                yaxis=dict(title='Heart Rate (BPM)', titlefont=dict(color='#e74c3c')),
-                yaxis2=dict(title='SpO2 (%)', titlefont=dict(color='#3498db'),
-                           overlaying='y', side='right'),
-                hovermode='x unified',
-                height=300,
-                margin=dict(l=20, r=50, t=30, b=20),
-                plot_bgcolor='rgba(240, 240, 240, 0.1)',
-                paper_bgcolor='rgba(0,0,0,0)'
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+        if not history_df.empty and len(history_df) > 1:
+            try:
+                fig = go.Figure()
+                
+                # Heart Rate
+                fig.add_trace(go.Scatter(
+                    x=history_df['timestamp'],
+                    y=history_df['hr'],
+                    name='Heart Rate (BPM)',
+                    line=dict(color='#e74c3c', width=2),
+                    yaxis='y1'
+                ))
+                
+                # SpO2
+                fig.add_trace(go.Scatter(
+                    x=history_df['timestamp'],
+                    y=history_df['spo2'],
+                    name='SpO2 (%)',
+                    line=dict(color='#3498db', width=2),
+                    yaxis='y2'
+                ))
+                
+                fig.update_layout(
+                    yaxis=dict(title='Heart Rate (BPM)', titlefont=dict(color='#e74c3c')),
+                    yaxis2=dict(title='SpO2 (%)', titlefont=dict(color='#3498db'),
+                               overlaying='y', side='right'),
+                    hovermode='x unified',
+                    height=300,
+                    margin=dict(l=20, r=50, t=30, b=20),
+                    plot_bgcolor='rgba(240, 240, 240, 0.1)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not display Heart Rate chart: {str(e)}")
+                st.info("Collecting more data...")
+        else:
+            st.info("⏳ Collecting data for charts...")
+            # Show placeholder
+            st.plotly_chart(go.Figure(), use_container_width=True)
     
     with col2:
         st.subheader("🌡️ Temperature & Activity")
         
-        if len(history_df) > 1:
-            fig = go.Figure()
-            
-            # Temperature
-            fig.add_trace(go.Scatter(
-                x=history_df['timestamp'],
-                y=history_df['temp'],
-                name='Temperature (°C)',
-                line=dict(color='#e67e22', width=2),
-                yaxis='y1'
-            ))
-            
-            # Activity
-            fig.add_trace(go.Scatter(
-                x=history_df['timestamp'],
-                y=history_df['activity'],
-                name='Activity Level',
-                line=dict(color='#9b59b6', width=2),
-                yaxis='y2',
-                fill='tozeroy',
-                fillcolor='rgba(155, 89, 182, 0.1)'
-            ))
-            
-            fig.update_layout(
-                yaxis=dict(title='Temperature (°C)', titlefont=dict(color='#e67e22')),
-                yaxis2=dict(title='Activity Level', titlefont=dict(color='#9b59b6'),
-                           overlaying='y', side='right'),
-                hovermode='x unified',
-                height=300,
-                margin=dict(l=20, r=50, t=30, b=20),
-                plot_bgcolor='rgba(240, 240, 240, 0.1)',
-                paper_bgcolor='rgba(0,0,0,0)'
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+        if not history_df.empty and len(history_df) > 1:
+            try:
+                fig = go.Figure()
+                
+                # Temperature
+                fig.add_trace(go.Scatter(
+                    x=history_df['timestamp'],
+                    y=history_df['temp'],
+                    name='Temperature (°C)',
+                    line=dict(color='#e67e22', width=2),
+                    yaxis='y1'
+                ))
+                
+                # Activity
+                fig.add_trace(go.Scatter(
+                    x=history_df['timestamp'],
+                    y=history_df['activity'],
+                    name='Activity Level',
+                    line=dict(color='#9b59b6', width=2),
+                    yaxis='y2',
+                    fill='tozeroy',
+                    fillcolor='rgba(155, 89, 182, 0.1)'
+                ))
+                
+                fig.update_layout(
+                    yaxis=dict(title='Temperature (°C)', titlefont=dict(color='#e67e22')),
+                    yaxis2=dict(title='Activity Level', titlefont=dict(color='#9b59b6'),
+                               overlaying='y', side='right'),
+                    hovermode='x unified',
+                    height=300,
+                    margin=dict(l=20, r=50, t=30, b=20),
+                    plot_bgcolor='rgba(240, 240, 240, 0.1)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not display Temperature chart: {str(e)}")
+                st.info("Collecting more data...")
+        else:
+            st.info("⏳ Collecting data for charts...")
+            # Show placeholder
+            st.plotly_chart(go.Figure(), use_container_width=True)
 
 def display_node_info(health_data, current_data, history_df):
     """Display node information and alerts"""
@@ -425,8 +423,8 @@ def display_node_info(health_data, current_data, history_df):
         except:
             last_update_str = "Unknown"
         
-        status_color = "#27ae60" if health_data.get('is_real_data', False) else "#f39c12"
-        status_text = "● REAL DATA" if health_data.get('is_real_data', False) else "● STREAMLIT CLOUD"
+        status_color = "#f39c12"  # Always yellow for cloud simulation
+        status_text = "● STREAMLIT CLOUD"
         
         st.markdown(f"""
         <div class="metric-card">
@@ -511,6 +509,11 @@ def main():
     # Initialize session state
     if 'history' not in st.session_state:
         st.session_state.history = deque(maxlen=100)  # Store last 100 readings
+        # Initialize with some data to prevent empty dataframe
+        for _ in range(5):
+            initial_data = generate_simulation_data()
+            initial_data['timestamp'] = datetime.fromisoformat(initial_data['timestamp'].replace('Z', '+00:00'))
+            st.session_state.history.append(initial_data)
     
     # Sidebar for configuration
     with st.sidebar:
@@ -545,27 +548,24 @@ def main():
         
         if st.button("🗑️ Clear History", use_container_width=True):
             st.session_state.history.clear()
-            st.success("History cleared!")
-            st.rerun()
-        
-        if st.button("🔄 Reset Simulation", use_container_width=True):
-            st.session_state.history.clear()
+            # Add one data point to prevent empty dataframe
+            initial_data = generate_simulation_data()
+            initial_data['timestamp'] = datetime.fromisoformat(initial_data['timestamp'].replace('Z', '+00:00'))
+            st.session_state.history.append(initial_data)
+            st.success("History cleared and reset!")
             st.rerun()
         
         st.divider()
         
         # System info
         st.subheader("System Status")
+        st.metric("Data Points", len(st.session_state.history))
         
-        # Load current data to show status
-        health_data = load_health_data()
-        if health_data:
-            current_data = health_data.get('data', {})
-            st.metric("Data Points", len(st.session_state.history))
-            st.metric("Heart Rate", f"{current_data.get('hr', 0)} BPM")
-            st.metric("SpO2", f"{current_data.get('spo2', 0)}%")
-        else:
-            st.warning("No data available")
+        # Show some sample data
+        if st.session_state.history:
+            latest = list(st.session_state.history)[-1]
+            st.metric("Heart Rate", f"{latest.get('hr', 0)} BPM")
+            st.metric("SpO2", f"{latest.get('spo2', 0)}%")
     
     # Load health data
     health_data = load_health_data()
@@ -592,11 +592,24 @@ def main():
         display_header(health_data)
         
         # Convert history to DataFrame for charts
-        history_df = pd.DataFrame(list(st.session_state.history))
-        
-        # Convert timestamp strings to datetime
-        if 'timestamp' in history_df.columns:
-            history_df['timestamp'] = pd.to_datetime(history_df['timestamp'])
+        try:
+            history_list = list(st.session_state.history)
+            history_df = pd.DataFrame(history_list)
+            
+            # Ensure we have required columns
+            required_columns = ['timestamp', 'hr', 'spo2', 'temp', 'activity']
+            for col in required_columns:
+                if col not in history_df.columns:
+                    history_df[col] = 0
+            
+            # Convert timestamp to datetime if it's not already
+            if history_df['timestamp'].dtype == 'object':
+                history_df['timestamp'] = pd.to_datetime(history_df['timestamp'])
+                
+        except Exception as e:
+            st.warning(f"Error creating history dataframe: {e}")
+            # Create empty dataframe with required columns
+            history_df = pd.DataFrame(columns=['timestamp', 'hr', 'spo2', 'temp', 'activity'])
         
         # Display metrics
         display_metrics(current_data, history_df, health_data.get('is_real_data', False))
@@ -608,14 +621,21 @@ def main():
         display_node_info(health_data, current_data, history_df)
         
         # Show info about cloud environment
-        st.info("""
-        **ℹ️ Streamlit Cloud Information**
-        
-        This dashboard is running on Streamlit Cloud. For real-time COM8 data from your STEMCUBE:
-        1. Run **Uploader.py** on your local computer
-        2. Run the **local version** of this dashboard
-        3. The cloud version shows simulation data for demonstration
-        """)
+        with st.expander("ℹ️ About This Dashboard"):
+            st.info("""
+            **Streamlit Cloud Information**
+            
+            This dashboard is running on Streamlit Cloud. For real-time COM8 data from your STEMCUBE:
+            1. Run **Uploader.py** on your local computer
+            2. Run the **local version** of this dashboard
+            3. The cloud version shows simulation data for demonstration
+            
+            **Current Simulation:**
+            - Heart Rate: Cycles between 65-130 BPM
+            - SpO2: Cycles between 94-98%
+            - Temperature: 36.5-37.2°C
+            - Activity: Changes every 10 seconds (Resting → Walking → Running)
+            """)
     
     else:
         st.error("❌ Failed to load health data")
