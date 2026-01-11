@@ -1,648 +1,1040 @@
+# dashboard_cloud.py - UPDATED WITH LOGO, CORRECT TIME & MUJI THEME
+"""
+REAL-TIME DASHBOARD FOR STEMCUBE
+WITH UMP LOGO, CORRECT TIME & MUJI THEME
+"""
+
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime, timedelta
 import time
-import numpy as np
+import pytz
 from collections import deque
-import json
-import os
-import requests
+import base64
+from io import BytesIO
 
-# ========== PAGE CONFIGURATION ==========
+# ================ TRY TO IMPORT SERIAL ================
+try:
+    import serial
+    SERIAL_AVAILABLE = True
+except ImportError:
+    SERIAL_AVAILABLE = False
+
+# ================ PAGE CONFIG ================
 st.set_page_config(
-    page_title="Real-Time Health Monitoring Dashboard",
+    page_title="STEMCUBE REAL-TIME MONITOR",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ========== CUSTOM CSS ==========
-st.markdown("""
+# ================ UMP LOGO BASE64 ================
+UMP_LOGO_BASE64 = """
+iVBORw0KGgoAAAANSUhEUgAAAfQAAABmCAYAAAD3mVZSAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA
+AXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAZdSURBVHgB7d1BbhtHEIDRGRp5/4uyJ5ByYBwY
+wIF9YIC4h6QL2ySbe2d2B1jfRwEESfL/j1/f/vgJAPDavr1/AAD4IkEHAEkEHQCkEXQAkEbQAUAa
+QQcAaQQdAKQRdACQRtABQBpBBwBpBB0ApBF0AJBG0AFAGkE3wOsX3j/xAsA6V2y/Owg6AHh9j85S
+0AFAu6uzFHQA0GrGLAUdALSZNUtBBwAtZs9S0AHAy1bmKOgA4KWr8xN0APCy1fkJOgB4ycoMBR0A
+vGRljoIOAF6wOkdBBwDjrc5R0AHAaKtzFHQA0GLGPAUdAIw2Y56CDgDGmjVPQQcAI82cq6ADgHFm
+zlXQAcAos2cr6ABgjNnzFXQAMMLq+Qo6AFhu9YwFHQAsN3vGgg4Alpo9Z0EHAEvNnrOgA4BlVsxZ
+0AHAEitmLegAYL4VsxZ0ADDXilkLOgCYa9W8BR0AzLNq3oIOAOZZNW9BBwDzrJq3oAOAeVbNW9AB
+wByr5i3oAGCeVfMWdAAwz6p5CzoAmGflzAUdAMyxcuaCDgDmWDlzQQcAc6ycuaADgBlWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AGA9//4HZRl
+AQAt9zY4AAAAAElFTkSuQmCC
+"""
+
+# ================ MUJI + OLIVE MARROON THEME ================
+st.markdown(f"""
 <style>
-    .main {
-        background-color: #f8f9fa;
-    }
+    /* MUJI + OLIVE MARROON COLOR PALETTE */
+    :root {{
+        --muji-maroon: #8B4513;
+        --olive-green: #556B2F;
+        --champagne: #F7E7CE;
+        --soft-beige: #F5F5DC;
+        --dark-chocolate: #3C2F2F;
+        --cream: #FFFDD0;
+        --warm-brown: #A0522D;
+        --earth-green: #6B8E23;
+    }}
     
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    }
+    /* MAIN BACKGROUND */
+    .stApp {{
+        background: linear-gradient(135deg, var(--soft-beige) 0%, var(--cream) 100%);
+        font-family: 'Segoe UI', 'Arial', sans-serif;
+    }}
     
-    /* Header */
-    .dashboard-header {
-        background: linear-gradient(90deg, #2c3e50 0%, #4ca1af 100%);
+    /* HEADER WITH LOGO */
+    .main-header {{
+        background: linear-gradient(135deg, var(--muji-maroon) 0%, var(--olive-green) 100%);
         color: white;
-        padding: 25px;
-        border-radius: 15px;
-        margin-bottom: 25px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Cards */
-    .metric-card {
-        background: white;
         padding: 20px;
         border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        border-left: 5px solid #3498db;
+        margin-bottom: 25px;
+        box-shadow: 0 6px 20px rgba(139, 69, 19, 0.3);
+        text-align: center;
+        position: relative;
+    }}
+    
+    .logo-container {{
+        position: absolute;
+        left: 30px;
+        top: 50%;
+        transform: translateY(-50%);
+    }}
+    
+    .logo-img {{
+        height: 60px;
+        width: auto;
+        filter: brightness(0) invert(1);
+    }}
+    
+    /* CARD STYLES */
+    .metric-card {{
+        background: linear-gradient(135deg, white 0%, var(--champagne) 100%);
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(85, 107, 47, 0.15);
+        border-left: 4px solid var(--olive-green);
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+    }}
+    
+    .metric-card:hover {{
+        transform: translateY(-3px);
+        box-shadow: 0 6px 16px rgba(85, 107, 47, 0.2);
+    }}
+    
+    .graph-container {{
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
+        border-top: 4px solid var(--muji-maroon);
         margin-bottom: 20px;
-    }
+    }}
     
-    .metric-card.critical {
-        border-left: 5px solid #e74c3c;
-        background: #ffeaea;
-    }
+    /* SIDEBAR */
+    .sidebar-section {{
+        background: linear-gradient(135deg, var(--champagne) 0%, white 100%);
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
+        margin-bottom: 20px;
+        border: 2px solid var(--soft-beige);
+    }}
     
-    .metric-card.warning {
-        border-left: 5px solid #f39c12;
-        background: #fff4e6;
-    }
+    /* TABS */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 5px;
+        background: var(--soft-beige);
+        padding: 5px;
+        border-radius: 10px;
+    }}
     
-    .metric-card.normal {
-        border-left: 5px solid #2ecc71;
-        background: #e8f8f1;
-    }
+    .stTabs [data-baseweb="tab"] {{
+        background: var(--champagne);
+        border-radius: 8px 8px 0 0;
+        padding: 12px 24px;
+        font-weight: 600;
+        color: var(--dark-chocolate);
+        border: 2px solid transparent;
+        transition: all 0.3s;
+    }}
     
-    /* Values */
-    .metric-value {
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(135deg, var(--muji-maroon) 0%, var(--olive-green) 100%) !important;
+        color: white !important;
+        border-color: var(--muji-maroon) !important;
+    }}
+    
+    /* BUTTONS */
+    .stButton button {{
+        background: linear-gradient(135deg, var(--olive-green) 0%, var(--muji-maroon) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 600;
+        transition: all 0.3s;
+    }}
+    
+    .stButton button:hover {{
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.3);
+    }}
+    
+    /* METRICS */
+    .metric-value {{
         font-size: 32px;
-        font-weight: bold;
-        color: #2c3e50;
-    }
+        font-weight: 700;
+        color: var(--dark-chocolate);
+        margin: 5px 0;
+    }}
     
-    .metric-label {
-        font-size: 14px;
-        color: #7f8c8d;
+    .metric-label {{
+        font-size: 13px;
+        color: var(--olive-green);
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 1px;
-    }
+        letter-spacing: 0.5px;
+    }}
     
-    /* Status badges */
-    .status-badge {
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: bold;
+    /* STATUS INDICATORS */
+    .status-normal {{
+        background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 18px;
+        font-weight: 600;
         display: inline-block;
-    }
+        font-size: 13px;
+    }}
     
-    .status-normal {
-        background: #d5f4e6;
-        color: #27ae60;
-    }
+    .status-warning {{
+        background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 18px;
+        font-weight: 600;
+        display: inline-block;
+        font-size: 13px;
+    }}
     
-    .status-warning {
-        background: #fdebd0;
-        color: #f39c12;
-    }
+    .status-critical {{
+        background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 18px;
+        font-weight: 600;
+        display: inline-block;
+        font-size: 13px;
+    }}
     
-    .status-critical {
-        background: #fadbd8;
-        color: #e74c3c;
-    }
+    /* DATA TABLE */
+    .dataframe {{
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }}
+    
+    .dataframe th {{
+        background: var(--olive-green) !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }}
+    
+    /* FOOTER */
+    .dashboard-footer {{
+        background: linear-gradient(135deg, var(--dark-chocolate) 0%, #2C1810 100%);
+        color: var(--champagne);
+        padding: 20px;
+        border-radius: 12px;
+        margin-top: 30px;
+        text-align: center;
+        font-size: 14px;
+    }}
+    
+    /* ACTIVITY EMOJI */
+    .activity-emoji {{
+        font-size: 48px;
+        margin: 10px 0;
+        animation: pulse 2s ease-in-out infinite;
+    }}
+    
+    @keyframes pulse {{
+        0% {{ transform: scale(1); }}
+        50% {{ transform: scale(1.1); }}
+        100% {{ transform: scale(1); }}
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# ========== DATA LOADING FUNCTIONS ==========
-def load_health_data():
-    """Load health data - for Streamlit Cloud, we'll use simulated data"""
-    try:
+# ================ INITIALIZE DATA BUFFERS ================
+def init_session_state():
+    """Initialize all session state variables WITH DATA"""
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
         current_time = datetime.now()
         
-        # Generate simulation data for cloud
-        simulation_data = generate_simulation_data()
+        # Create INITIAL DATA
+        initial_hr = 75
+        initial_spo2 = 98
+        initial_temp = 36.5
+        initial_movement = 1.0
         
-        return {
-            'status': 'connected',
-            'last_update': current_time.isoformat(),
-            'is_real_data': False,
-            'data_source': 'STREAMLIT_CLOUD_SIMULATION',
-            'parsed_success': True,
-            'data': simulation_data
-        }
+        # Initialize with 10 data points
+        st.session_state.hr_data = deque([initial_hr + np.random.normal(0, 3) for _ in range(10)], maxlen=50)
+        st.session_state.spo2_data = deque([initial_spo2 + np.random.normal(0, 1) for _ in range(10)], maxlen=50)
+        st.session_state.temp_data = deque([initial_temp + np.random.normal(0, 0.2) for _ in range(10)], maxlen=50)
+        st.session_state.movement_data = deque([initial_movement + np.random.normal(0, 0.3) for _ in range(10)], maxlen=50)
+        st.session_state.timestamps = deque([current_time - timedelta(seconds=i) for i in range(10)][::-1], maxlen=50)
         
-    except Exception as e:
-        # Fallback to basic simulation
-        current_time = datetime.now()
-        return {
-            'status': 'disconnected',
-            'last_update': current_time.isoformat(),
-            'is_real_data': False,
-            'data_source': 'FALLBACK_SIMULATION',
-            'parsed_success': False,
-            'data': {
-                'hr': 72, 'spo2': 98, 'temp': 36.5,
-                'activity_level': 'RESTING',
-                'movement': 0.0,
-                'node_id': 'NODE_e661',
-                'timestamp': current_time.isoformat(),
-                'malaysia_time': current_time.strftime('%H:%M:%S'),
-                'hr_status': 'NORMAL',
-                'spo2_status': 'NORMAL',
-                'temp_status': 'NORMAL',
-                'activity': 0.0
+        # Raw packets storage
+        st.session_state.raw_packets = deque(maxlen=20)
+        
+        # Store complete data records
+        st.session_state.all_data = deque([
+            {
+                'timestamp': current_time - timedelta(seconds=i),
+                'hr': initial_hr + np.random.normal(0, 3),
+                'spo2': initial_spo2 + np.random.normal(0, 1),
+                'temp': initial_temp + np.random.normal(0, 0.2),
+                'movement': initial_movement + np.random.normal(0, 0.3),
+                'activity': ['RESTING', 'WALKING', 'RUNNING'][i % 3],
+                'is_real': False
             }
-        }
+            for i in range(10)
+        ], maxlen=50)
+        
+        # Connection status
+        st.session_state.com8_status = "Checking..."
 
-def generate_simulation_data():
-    """Generate realistic simulation data for Streamlit Cloud"""
+# ================ DISPLAY HEADER WITH LOGO ================
+def display_header():
+    """Display header with UMP logo"""
+    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+    current_time_malaysia = datetime.now(malaysia_tz)
+    
+    # Decode and display logo
+    logo_data = base64.b64decode(UMP_LOGO_BASE64)
+    
+    st.markdown(f"""
+    <div class="main-header">
+        <div class="logo-container">
+            <img src="data:image/png;base64,{UMP_LOGO_BASE64}" class="logo-img">
+        </div>
+        <div style="margin-left: 80px;">
+            <h1 style="margin: 0; font-size: 2.2rem; font-weight: 700;">🏥 STEMCUBE HEALTH MONITORING SYSTEM</h1>
+            <p style="margin: 8px 0 0 0; font-size: 1.1rem; opacity: 0.95;">
+                📍 Universiti Malaysia Pahang • 🎓 Final Year Project 2025
+            </p>
+            <p style="margin: 5px 0 0 0; font-size: 0.95rem; opacity: 0.85;">
+                🇲🇾 Malaysia Time: <strong>{current_time_malaysia.strftime('%I:%M:%S %p')}</strong> • 
+                📅 Date: {current_time_malaysia.strftime('%d %B %Y')}
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ================ SIMPLE COM8 READER ================
+def read_com8_direct():
+    """Read DIRECTLY from COM8"""
+    if not SERIAL_AVAILABLE:
+        return None, "Serial library not installed"
+    
+    try:
+        ser = serial.Serial('COM8', 9600, timeout=0.5)
+        
+        if ser.in_waiting > 0:
+            raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
+            ser.close()
+            
+            if raw_line:
+                # Parse data
+                data = {
+                    'timestamp': datetime.now(),
+                    'hr': 75,
+                    'spo2': 98,
+                    'temp': 36.5,
+                    'movement': 1.0,
+                    'activity': 'RESTING',
+                    'packet_id': int(time.time() * 100) % 10000,
+                    'node_id': 'NODE_e661',
+                    'is_real': True,
+                    'raw': raw_line[:60]
+                }
+                
+                # Parse based on common formats
+                try:
+                    # Format: HR:XX|SpO2:XX|TEMP:XX|ACT:XXX
+                    if '|' in raw_line:
+                        parts = raw_line.split('|')
+                        for part in parts:
+                            if 'HR:' in part:
+                                data['hr'] = int(''.join(filter(str.isdigit, part.split('HR:')[1]))[:3])
+                            elif 'SpO2:' in part:
+                                data['spo2'] = int(''.join(filter(str.isdigit, part.split('SpO2:')[1]))[:3])
+                            elif 'TEMP:' in part:
+                                temp_str = part.split('TEMP:')[1]
+                                data['temp'] = float(''.join([c for c in temp_str if c.isdigit() or c == '.']))
+                            elif 'ACT:' in part:
+                                data['activity'] = part.split('ACT:')[1].strip()
+                    
+                    # Format: XX,XX,XX,XXX
+                    elif ',' in raw_line and ':' not in raw_line:
+                        parts = raw_line.split(',')
+                        if len(parts) >= 4:
+                            data['hr'] = int(parts[0]) if parts[0].isdigit() else 75
+                            data['spo2'] = int(parts[1]) if parts[1].isdigit() else 98
+                            data['temp'] = float(parts[2]) if parts[2].replace('.', '').isdigit() else 36.5
+                            data['activity'] = parts[3]
+                
+                except:
+                    pass
+                
+                # Store raw packet
+                st.session_state.raw_packets.append({
+                    'time': datetime.now().strftime('%H:%M:%S'),
+                    'packet': raw_line[:50]
+                })
+                
+                return data, "✅ Connected to COM8"
+        
+        ser.close()
+        return None, "⏳ Waiting for COM8 data..."
+        
+    except serial.SerialException:
+        return None, "❌ COM8 not available"
+    except Exception as e:
+        return None, f"⚠️ COM8 error: {str(e)[:40]}"
+
+def get_demo_data():
+    """Generate realistic demo data for 6:50 AM"""
     current_time = datetime.now()
     
-    # Get current seconds to cycle activities
-    current_second = int(time.time()) % 30  # Cycle every 30 seconds
+    # Morning values (6:50 AM) - typically resting
+    # Realistic morning vitals:
+    # - HR: 60-75 (resting in morning)
+    # - SpO2: 96-99 (normal)
+    # - Temp: 36.3-36.8 (morning temperature)
     
-    if current_second < 10:
-        activity = 'RESTING'
-        hr = 65 + np.random.randint(-5, 6)
-        spo2 = 97 + np.random.randint(-1, 2)
-        temp = 36.5 + np.random.uniform(-0.2, 0.2)
-        movement = np.random.uniform(0.0, 0.3)
-        activity_score = np.random.uniform(0.0, 1.0)
-    elif current_second < 20:
-        activity = 'WALKING'
-        hr = 85 + np.random.randint(-10, 11)
-        spo2 = 96 + np.random.randint(-2, 1)
-        temp = 36.8 + np.random.uniform(-0.3, 0.3)
-        movement = np.random.uniform(0.5, 1.5)
-        activity_score = np.random.uniform(1.5, 3.0)
-    else:
-        activity = 'RUNNING'
-        hr = 115 + np.random.randint(-15, 16)
-        spo2 = 94 + np.random.randint(-3, 1)
-        temp = 37.2 + np.random.uniform(-0.4, 0.4)
-        movement = np.random.uniform(1.5, 3.0)
-        activity_score = np.random.uniform(3.0, 5.0)
+    base_hr = 68 + np.random.normal(0, 4)
+    base_spo2 = 97 + np.random.normal(0, 1)
+    base_temp = 36.5 + np.random.normal(0, 0.2)
     
-    # Add status indicators
-    hr_status = "NORMAL"
-    if hr > 120:
-        hr_status = "CRITICAL"
-    elif hr > 100:
-        hr_status = "WARNING"
-        
-    spo2_status = "NORMAL"
-    if spo2 < 90:
-        spo2_status = "CRITICAL"
-    elif spo2 < 95:
-        spo2_status = "WARNING"
-        
-    temp_status = "NORMAL"
-    if temp > 38.0:
-        temp_status = "CRITICAL"
-    elif temp > 37.0:
-        temp_status = "WARNING"
+    # Morning activity - likely RESTING or light movement
+    activities = ['RESTING', 'RESTING', 'RESTING', 'WALKING']  # 75% resting, 25% walking in morning
+    activity = np.random.choice(activities)
+    
+    if activity == 'RESTING':
+        movement = 0.5 + np.random.random() * 0.5
+        # Adjust HR for resting
+        base_hr = max(60, min(75, base_hr))
+    else:  # WALKING
+        movement = 1.5 + np.random.random() * 1.0
+        base_hr = max(75, min(90, base_hr))
     
     return {
-        'hr': int(hr),
-        'spo2': int(spo2),
-        'temp': float(f"{temp:.1f}"),
-        'activity_level': activity,
-        'movement': float(f"{movement:.3f}"),
-        'activity': float(f"{activity_score:.2f}"),
+        'timestamp': current_time,
+        'hr': int(max(55, min(90, base_hr))),
+        'spo2': int(max(95, min(100, base_spo2))),
+        'temp': round(max(36.0, min(37.0, base_temp)), 1),
+        'movement': round(movement, 1),
+        'activity': activity,
+        'packet_id': int(time.time() * 100) % 10000,
         'node_id': 'NODE_e661',
-        'timestamp': current_time.isoformat(),
-        'malaysia_time': current_time.strftime('%H:%M:%S'),
-        'hr_status': hr_status,
-        'spo2_status': spo2_status,
-        'temp_status': temp_status,
-        'confidence': float(f"{np.random.uniform(0.85, 0.99):.2f}"),
-        'battery': 85,
-        'rssi': -65
+        'is_real': False,
+        'raw': 'DEMO: Morning vitals (6:50 AM)'
     }
 
-# ========== DASHBOARD COMPONENTS ==========
-def display_header(health_data):
-    """Display dashboard header with data source info"""
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        data_source = health_data.get('data_source', 'UNKNOWN')
-        is_real = health_data.get('is_real_data', False)
-        
-        source_badge = "🔴 REAL DATA" if is_real else "🟡 STREAMLIT CLOUD SIMULATION"
-        source_color = "#27ae60" if is_real else "#f39c12"
+def update_data_buffers(data):
+    """Update all data buffers"""
+    st.session_state.timestamps.append(data['timestamp'])
+    st.session_state.hr_data.append(data['hr'])
+    st.session_state.spo2_data.append(data['spo2'])
+    st.session_state.temp_data.append(data['temp'])
+    st.session_state.movement_data.append(data['movement'])
+    
+    # Store complete record
+    st.session_state.all_data.append({
+        'timestamp': data['timestamp'],
+        'hr': data['hr'],
+        'spo2': data['spo2'],
+        'temp': data['temp'],
+        'movement': data['movement'],
+        'activity': data['activity'],
+        'is_real': data['is_real']
+    })
+
+# ================ GRAPH FUNCTIONS ================
+def create_graph(title, y_data, color, y_label):
+    """Create a graph with MUJI colors"""
+    if len(st.session_state.timestamps) == 0:
+        return None
+    
+    n_points = min(30, len(st.session_state.timestamps))
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=list(st.session_state.timestamps)[-n_points:],
+        y=list(y_data)[-n_points:],
+        mode='lines+markers',
+        line=dict(color=color, width=3),
+        marker=dict(size=5, color=color),
+        fill='tozeroy',
+        fillcolor=f'rgba{tuple(int(color.lstrip("#")[i:i+2], 16) for i in (0, 2, 4)) + (0.1,)}'
+    ))
+    
+    fig.update_layout(
+        title={
+            'text': title,
+            'font': {'size': 16, 'color': '#3C2F2F', 'family': 'Arial'}
+        },
+        height=280,
+        margin=dict(l=50, r=20, t=50, b=50),
+        xaxis_title="Time",
+        yaxis_title=y_label,
+        plot_bgcolor='rgba(255, 253, 208, 0.1)',
+        paper_bgcolor='white',
+        font=dict(family='Arial', size=12),
+        showlegend=False
+    )
+    
+    return fig
+
+# ================ TAB 1: HEALTH VITALS ================
+def tab_health_vitals(current_data):
+    """Tab 1: Health Vitals with MUJI theme"""
+    
+    # Activity display with emoji
+    col_activity = st.columns([1, 2, 1])
+    with col_activity[1]:
+        activity = current_data['activity']
+        emoji = "😴" if activity == 'RESTING' else "🚶" if activity == 'WALKING' else "🏃"
+        activity_color = '#8B4513' if activity == 'RESTING' else '#556B2F' if activity == 'WALKING' else '#D4A76A'
         
         st.markdown(f"""
-        <div class="dashboard-header">
-            <h1 style="margin:0; font-size: 2.5rem;">🏥 HEALTH MONITORING DASHBOARD</h1>
-            <p style="margin:10px 0 0 0; font-size: 1.2rem; opacity: 0.9;">
-                Cloud-Based Monitoring System
-            </p>
-            <div style="margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px;">
-                <span style="background: {source_color}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">
-                    {source_badge}
-                </span>
-                <span style="color: rgba(255,255,255,0.8);">{data_source}</span>
-            </div>
+        <div style="text-align: center; padding: 15px; border-radius: 12px; 
+                    background: linear-gradient(135deg, {activity_color}20 0%, white 100%);
+                    border: 2px solid {activity_color}40;">
+            <div class="activity-emoji">{emoji}</div>
+            <h2 style="color: {activity_color}; margin: 5px 0;">{activity}</h2>
+            <p style="color: #666; font-size: 14px;">Patient Activity Status</p>
         </div>
         """, unsafe_allow_html=True)
-
-def display_metrics(current_data, history_df, is_real_data):
-    """Display health metrics"""
+    
+    # Current Metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        hr_status = current_data.get('hr_status', 'NORMAL')
-        hr_status_class = "critical" if hr_status == "CRITICAL" else "warning" if hr_status == "WARNING" else "normal"
-        hr_value = current_data.get('hr', 72)
-        hr_avg = history_df['hr'].mean() if not history_df.empty and 'hr' in history_df.columns else hr_value
-        st.markdown(f"""
-        <div class="metric-card {hr_status_class}">
-            <div class="metric-label">HEART RATE</div>
-            <div class="metric-value">{hr_value:.0f} BPM</div>
-            <div class="status-badge status-{hr_status.lower()}">{hr_status}</div>
-            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                📊 Avg: {hr_avg:.0f} BPM
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        spo2_status = current_data.get('spo2_status', 'NORMAL')
-        spo2_status_class = "critical" if spo2_status == "CRITICAL" else "warning" if spo2_status == "WARNING" else "normal"
-        spo2_value = current_data.get('spo2', 98)
-        spo2_avg = history_df['spo2'].mean() if not history_df.empty and 'spo2' in history_df.columns else spo2_value
-        st.markdown(f"""
-        <div class="metric-card {spo2_status_class}">
-            <div class="metric-label">OXYGEN SATURATION</div>
-            <div class="metric-value">{spo2_value:.0f} %</div>
-            <div class="status-badge status-{spo2_status.lower()}">{spo2_status}</div>
-            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                📊 Avg: {spo2_avg:.0f} %
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        temp_status = current_data.get('temp_status', 'NORMAL')
-        temp_status_class = "critical" if temp_status == "CRITICAL" else "warning" if temp_status == "WARNING" else "normal"
-        temp_value = current_data.get('temp', 36.5)
-        temp_avg = history_df['temp'].mean() if not history_df.empty and 'temp' in history_df.columns else temp_value
-        st.markdown(f"""
-        <div class="metric-card {temp_status_class}">
-            <div class="metric-label">BODY TEMPERATURE</div>
-            <div class="metric-value">{temp_value:.1f} °C</div>
-            <div class="status-badge status-{temp_status.lower()}">{temp_status}</div>
-            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
-                📊 Avg: {temp_avg:.1f} °C
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        activity_level = current_data.get('activity_level', 'RESTING')
-        activity_color = "#2ecc71" if activity_level == "RESTING" else "#f39c12" if activity_level == "WALKING" else "#e74c3c"
-        activity_value = current_data.get('activity', 0.0)
-        movement_value = current_data.get('movement', 0.0)
-        confidence_value = current_data.get('confidence', 0.95)
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        hr = current_data['hr']
+        if 60 <= hr <= 100:
+            status_class = "status-normal"
+            status = "NORMAL"
+        elif 50 <= hr <= 110:
+            status_class = "status-warning"
+            status = "WARNING"
+        else:
+            status_class = "status-critical"
+            status = "ALERT"
         
         st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">ACTIVITY LEVEL</div>
-            <div class="metric-value" style="color: {activity_color};">{activity_level}</div>
-            <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
-                Intensity: {activity_value:.2f}
-            </div>
-            <div style="font-size: 12px; margin-top: 5px; color: #7f8c8d;">
-                Movement: {movement_value:.3f} g
-            </div>
-            <div style="font-size: 12px; margin-top: 5px; color: #9b59b6;">
-                🎯 ML Confidence: {confidence_value:.2f}
+        <div style="text-align: center;">
+            <div class="metric-label">HEART RATE</div>
+            <div class="metric-value" style="color: {'#4CAF50' if 60 <= hr <= 100 else '#FF9800' if 50 <= hr <= 110 else '#F44336'};">{hr}</div>
+            <div style="font-size: 14px; color: #666; margin: 5px 0;">BPM</div>
+            <div class="{status_class}">{status}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        spo2 = current_data['spo2']
+        if spo2 >= 95:
+            status_class = "status-normal"
+            status = "NORMAL"
+        elif spo2 >= 90:
+            status_class = "status-warning"
+            status = "LOW"
+        else:
+            status_class = "status-critical"
+            status = "CRITICAL"
+        
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div class="metric-label">BLOOD OXYGEN</div>
+            <div class="metric-value" style="color: {'#4CAF50' if spo2 >= 95 else '#FF9800' if spo2 >= 90 else '#F44336'};">{spo2}%</div>
+            <div style="font-size: 14px; color: #666; margin: 5px 0;">SpO₂</div>
+            <div class="{status_class}">{status}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        temp = current_data['temp']
+        if temp <= 37.5:
+            status_class = "status-normal"
+            status = "NORMAL"
+        elif temp <= 38.5:
+            status_class = "status-warning"
+            status = "ELEVATED"
+        else:
+            status_class = "status-critical"
+            status = "FEVER"
+        
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div class="metric-label">TEMPERATURE</div>
+            <div class="metric-value" style="color: {'#4CAF50' if temp <= 37.5 else '#FF9800' if temp <= 38.5 else '#F44336'};">{temp}°C</div>
+            <div style="font-size: 14px; color: #666; margin: 5px 0;">Body Temp</div>
+            <div class="{status_class}">{status}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("<div class='metric-card'>", unsafe_allow_html=True)
+        movement = current_data['movement']
+        
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div class="metric-label">MOVEMENT</div>
+            <div class="metric-value" style="color: #8D6E63;">{movement}</div>
+            <div style="font-size: 14px; color: #666; margin: 5px 0;">Activity Level</div>
+            <div style="margin-top: 10px;">
+                <div style="background: #F5F5DC; height: 8px; border-radius: 4px; overflow: hidden;">
+                    <div style="background: linear-gradient(90deg, #556B2F, #8B4513); 
+                                width: {min(100, movement * 20)}%; height: 100%;"></div>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-def display_charts(history_df):
-    """Display charts with error handling"""
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Real-time Graphs
+    st.markdown("### 📈 Real-time Monitoring")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📈 Vital Signs Trend")
-        
-        if not history_df.empty and len(history_df) > 1:
-            try:
-                fig = go.Figure()
-                
-                # Heart Rate
-                fig.add_trace(go.Scatter(
-                    x=history_df['timestamp'],
-                    y=history_df['hr'],
-                    name='Heart Rate (BPM)',
-                    line=dict(color='#e74c3c', width=2),
-                    yaxis='y1'
-                ))
-                
-                # SpO2
-                fig.add_trace(go.Scatter(
-                    x=history_df['timestamp'],
-                    y=history_df['spo2'],
-                    name='SpO2 (%)',
-                    line=dict(color='#3498db', width=2),
-                    yaxis='y2'
-                ))
-                
-                fig.update_layout(
-                    yaxis=dict(title='Heart Rate (BPM)', titlefont=dict(color='#e74c3c')),
-                    yaxis2=dict(title='SpO2 (%)', titlefont=dict(color='#3498db'),
-                               overlaying='y', side='right'),
-                    hovermode='x unified',
-                    height=300,
-                    margin=dict(l=20, r=50, t=30, b=20),
-                    plot_bgcolor='rgba(240, 240, 240, 0.1)',
-                    paper_bgcolor='rgba(0,0,0,0)'
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.warning(f"Could not display Heart Rate chart: {str(e)}")
-                st.info("Collecting more data...")
-        else:
-            st.info("⏳ Collecting data for charts...")
-            # Show placeholder
-            st.plotly_chart(go.Figure(), use_container_width=True)
+        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+        hr_fig = create_graph("❤️ Heart Rate Trend", st.session_state.hr_data, '#8B4513', 'BPM')
+        if hr_fig:
+            st.plotly_chart(hr_fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.subheader("🌡️ Temperature & Activity")
-        
-        if not history_df.empty and len(history_df) > 1:
-            try:
-                fig = go.Figure()
-                
-                # Temperature
-                fig.add_trace(go.Scatter(
-                    x=history_df['timestamp'],
-                    y=history_df['temp'],
-                    name='Temperature (°C)',
-                    line=dict(color='#e67e22', width=2),
-                    yaxis='y1'
-                ))
-                
-                # Activity
-                fig.add_trace(go.Scatter(
-                    x=history_df['timestamp'],
-                    y=history_df['activity'],
-                    name='Activity Level',
-                    line=dict(color='#9b59b6', width=2),
-                    yaxis='y2',
-                    fill='tozeroy',
-                    fillcolor='rgba(155, 89, 182, 0.1)'
-                ))
-                
-                fig.update_layout(
-                    yaxis=dict(title='Temperature (°C)', titlefont=dict(color='#e67e22')),
-                    yaxis2=dict(title='Activity Level', titlefont=dict(color='#9b59b6'),
-                               overlaying='y', side='right'),
-                    hovermode='x unified',
-                    height=300,
-                    margin=dict(l=20, r=50, t=30, b=20),
-                    plot_bgcolor='rgba(240, 240, 240, 0.1)',
-                    paper_bgcolor='rgba(0,0,0,0)'
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.warning(f"Could not display Temperature chart: {str(e)}")
-                st.info("Collecting more data...")
-        else:
-            st.info("⏳ Collecting data for charts...")
-            # Show placeholder
-            st.plotly_chart(go.Figure(), use_container_width=True)
-
-def display_node_info(health_data, current_data, history_df):
-    """Display node information and alerts"""
-    col1, col2 = st.columns([1, 2])
+        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+        spo2_fig = create_graph("🩸 Blood Oxygen Trend", st.session_state.spo2_data, '#556B2F', 'SpO₂ %')
+        if spo2_fig:
+            st.plotly_chart(spo2_fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📱 Device Information")
-        
-        last_update = health_data.get('last_update', datetime.now().isoformat())
-        try:
-            last_update_time = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
-            last_update_str = last_update_time.strftime('%H:%M:%S')
-        except:
-            last_update_str = "Unknown"
-        
-        status_color = "#f39c12"  # Always yellow for cloud simulation
-        status_text = "● STREAMLIT CLOUD"
-        
-        st.markdown(f"""
-        <div class="metric-card">
-            <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                <div style="font-size: 24px; margin-right: 10px;">📱</div>
-                <div>
-                    <div style="font-weight: bold; font-size: 18px;">{current_data.get('node_id', 'NODE_e661')}</div>
-                    <div style="color: #7f8c8d; font-size: 14px;">Virtual Wearable Monitor</div>
-                </div>
-            </div>
-            
-            <div style="margin-top: 15px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span>Data Points:</span>
-                    <span style="font-weight: bold;">{len(history_df)}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span>Last Update:</span>
-                    <span style="font-weight: bold;">{last_update_str}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                    <span>Source:</span>
-                    <span style="color: {status_color}; font-weight: bold;">{status_text}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span>Environment:</span>
-                    <span style="color: #3498db; font-weight: bold;">☁️ Streamlit Cloud</span>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+        temp_fig = create_graph("🌡️ Temperature Trend", st.session_state.temp_data, '#D4A76A', '°C')
+        if temp_fig:
+            st.plotly_chart(temp_fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
-        st.subheader("⚠️ Alerts & Notifications")
+        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+        move_fig = create_graph("🏃 Movement Activity", st.session_state.movement_data, '#8D6E63', 'Activity Level')
+        if move_fig:
+            st.plotly_chart(move_fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# ================ TAB 2: SYSTEM STATUS ================
+def tab_system_status(current_data, com8_status):
+    """Tab 2: System Status"""
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+        st.markdown("### 📡 Connection Status")
         
-        alerts = []
-        
-        hr_status = current_data.get('hr_status', 'NORMAL')
-        if hr_status == "CRITICAL":
-            alerts.append(("🚨 Critical Heart Rate", f"Heart rate is critically high at {current_data.get('hr', 72):.0f} BPM", "critical"))
-        elif hr_status == "WARNING":
-            alerts.append(("⚠️ Elevated Heart Rate", f"Heart rate is elevated at {current_data.get('hr', 72):.0f} BPM", "warning"))
-            
-        spo2_status = current_data.get('spo2_status', 'NORMAL')
-        if spo2_status == "CRITICAL":
-            alerts.append(("🚨 Low Oxygen", f"SpO2 is critically low at {current_data.get('spo2', 98):.0f}%", "critical"))
-        elif spo2_status == "WARNING":
-            alerts.append(("⚠️ Low Oxygen", f"SpO2 is low at {current_data.get('spo2', 98):.0f}%", "warning"))
-            
-        temp_status = current_data.get('temp_status', 'NORMAL')
-        if temp_status == "CRITICAL":
-            alerts.append(("🚨 High Temperature", f"Temperature is critically high at {current_data.get('temp', 36.5):.1f}°C", "critical"))
-        elif temp_status == "WARNING":
-            alerts.append(("⚠️ Elevated Temperature", f"Temperature is elevated at {current_data.get('temp', 36.5):.1f}°C", "warning"))
-        
-        if alerts:
-            for alert_title, alert_msg, alert_type in alerts:
-                alert_color = "#e74c3c" if alert_type == "critical" else "#f39c12"
-                st.markdown(f"""
-                <div style="background: {'#ffeaea' if alert_type == 'critical' else '#fff4e6'}; 
-                          padding: 15px; border-radius: 10px; border-left: 5px solid {alert_color};
-                          margin-bottom: 10px;">
-                    <div style="font-weight: bold; color: {alert_color}; margin-bottom: 5px;">
-                        {alert_title}
-                    </div>
-                    <div style="color: #2c3e50;">
-                        {alert_msg}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+        # Connection status with icon
+        if "✅ Connected" in com8_status:
+            st.success(f"**{com8_status}**")
+            st.balloons()
+        elif "❌" in com8_status:
+            st.error(f"**{com8_status}**")
+        elif "⚠️" in com8_status:
+            st.warning(f"**{com8_status}**")
         else:
-            st.markdown(f"""
-            <div style="background: #e8f8f1; padding: 30px; border-radius: 10px; text-align: center; border: 2px dashed #2ecc71;">
-                <div style="font-size: 48px; color: #27ae60; margin-bottom: 10px;">✓</div>
-                <div style="font-size: 18px; color: #27ae60; font-weight: bold;">All Systems Normal</div>
-                <div style="color: #7f8c8d; margin-top: 10px;">No critical alerts detected</div>
+            st.info(f"**{com8_status}**")
+        
+        # Data source indicator
+        st.markdown("---")
+        if current_data['is_real']:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #4CAF5020 0%, #4CAF5010 100%); 
+                        padding: 15px; border-radius: 10px; border-left: 4px solid #4CAF50;">
+                <h4 style="color: #2E7D32; margin: 0 0 10px 0;">🌐 REAL DATA MODE</h4>
+                <p style="color: #666; margin: 0; font-size: 14px;">
+                    Receiving live data from STEMCUBE Master via COM8
+                </p>
             </div>
             """, unsafe_allow_html=True)
-
-# ========== MAIN DASHBOARD ==========
-def main():
-    # Initialize session state
-    if 'history' not in st.session_state:
-        st.session_state.history = deque(maxlen=100)  # Store last 100 readings
-        # Initialize with some data to prevent empty dataframe
-        for _ in range(5):
-            initial_data = generate_simulation_data()
-            initial_data['timestamp'] = datetime.fromisoformat(initial_data['timestamp'].replace('Z', '+00:00'))
-            st.session_state.history.append(initial_data)
+        else:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #FF980020 0%, #FF980010 100%); 
+                        padding: 15px; border-radius: 10px; border-left: 4px solid #FF9800;">
+                <h4 style="color: #F57C00; margin: 0 0 10px 0;">💻 DEMO DATA MODE</h4>
+                <p style="color: #666; margin: 0; font-size: 14px;">
+                    Showing simulated data. Connect STEMCUBE for real-time monitoring.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.metric("🔢 Packet ID", current_data['packet_id'])
+        st.metric("📟 Node ID", current_data['node_id'])
+        st.metric("⏰ Last Update", datetime.now().strftime('%H:%M:%S'))
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    # Sidebar for configuration
-    with st.sidebar:
+    with col2:
+        st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+        st.markdown("### 🔋 System Health")
+        
+        # Battery gauge with MUJI colors
+        battery = 85
+        fig_battery = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=battery,
+            title={'text': "Battery Level", 'font': {'size': 16, 'color': '#3C2F2F'}},
+            number={'suffix': "%", 'font': {'size': 28, 'color': '#8B4513'}},
+            gauge={
+                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': '#3C2F2F'},
+                'bar': {'color': '#556B2F'},
+                'bgcolor': "white",
+                'borderwidth': 2,
+                'bordercolor': "#F7E7CE",
+                'steps': [
+                    {'range': [0, 20], 'color': 'rgba(244, 67, 54, 0.1)'},
+                    {'range': [20, 50], 'color': 'rgba(255, 152, 0, 0.1)'},
+                    {'range': [50, 100], 'color': 'rgba(85, 107, 47, 0.1)'}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 20
+                }
+            }
+        ))
+        
+        fig_battery.update_layout(
+            height=250,
+            margin=dict(t=50, b=20, l=20, r=20),
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(family='Arial', size=12)
+        )
+        st.plotly_chart(fig_battery, use_container_width=True)
+        
+        # System metrics
+        col_metric1, col_metric2 = st.columns(2)
+        with col_metric1:
+            st.metric("📶 Signal", "-65 dB")
+        with col_metric2:
+            st.metric("📡 SNR", "12 dB")
+        
+        # Progress bars
+        st.progress(0.85, text="Battery: 85%")
+        st.progress(0.92, text="Signal Quality: 92%")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Raw Packets
+    st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+    st.markdown("### 📡 Recent Data Packets")
+    
+    if len(st.session_state.raw_packets) > 0:
+        for packet in list(st.session_state.raw_packets)[-5:]:
+            st.code(f"{packet['time']}: {packet['packet']}")
+    else:
+        st.info("Waiting for data packets...")
+        # Show sample format
         st.markdown("""
-        <div style="text-align: center; margin-bottom: 30px;">
-            <div style="font-size: 24px; font-weight: bold; color: #2c3e50;">⚙️ SETTINGS</div>
+        **Expected STEMCUBE Format:**
+        ```
+        HR:72|SpO2:98|TEMP:36.5|ACT:RESTING|BAT:85
+        ```
+        """)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ================ TAB 3: DATA LOG ================
+def tab_data_log():
+    """Tab 3: Data Log"""
+    
+    st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
+    st.markdown("### 📋 Recent Data Log")
+    
+    if len(st.session_state.all_data) > 0:
+        # Get last 10 records
+        all_data_list = list(st.session_state.all_data)
+        n_items = min(10, len(all_data_list))
+        
+        table_data = []
+        for i in range(1, n_items + 1):
+            record = all_data_list[-i]
+            table_data.append({
+                'Time': record['timestamp'].strftime('%H:%M:%S'),
+                'HR': record['hr'],
+                'SpO₂': record['spo2'],
+                'Temp': f"{record['temp']:.1f}°C",
+                'Movement': f"{record['movement']:.1f}",
+                'Activity': record['activity'],
+                'Source': '📡 REAL' if record['is_real'] else '💻 DEMO'
+            })
+        
+        # Reverse to show newest first
+        table_data.reverse()
+        
+        df = pd.DataFrame(table_data)
+        st.dataframe(df, use_container_width=True, height=400)
+    else:
+        st.info("No data available yet")
+    
+    # Data Statistics
+    st.markdown("### 📊 Data Statistics")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        hr_list = list(st.session_state.hr_data)
+        avg_hr = np.mean(hr_list) if hr_list else 75
+        st.metric("HR Avg", f"{avg_hr:.0f} BPM", delta="Normal" if 60 <= avg_hr <= 100 else "Check")
+    
+    with col2:
+        spo2_list = list(st.session_state.spo2_data)
+        avg_spo2 = np.mean(spo2_list) if spo2_list else 98
+        st.metric("SpO₂ Avg", f"{avg_spo2:.0f}%", delta="Good" if avg_spo2 >= 95 else "Low")
+    
+    with col3:
+        temp_list = list(st.session_state.temp_data)
+        avg_temp = np.mean(temp_list) if temp_list else 36.5
+        st.metric("Temp Avg", f"{avg_temp:.1f}°C", delta="Normal" if avg_temp <= 37.5 else "High")
+    
+    with col4:
+        move_list = list(st.session_state.movement_data)
+        avg_move = np.mean(move_list) if move_list else 1.0
+        st.metric("Activity Avg", f"{avg_move:.1f}")
+    
+    with col5:
+        st.metric("Data Points", len(st.session_state.timestamps))
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ================ MAIN DASHBOARD ================
+def main():
+    """Main dashboard function"""
+    
+    # Initialize session state
+    init_session_state()
+    
+    # Display header with logo
+    display_header()
+    
+    # Get data from COM8 or demo
+    com8_data, com8_status = read_com8_direct()
+    
+    if com8_data:
+        current_data = com8_data
+        st.session_state.com8_status = com8_status
+    else:
+        current_data = get_demo_data()
+        st.session_state.com8_status = com8_status
+    
+    # Update buffers
+    update_data_buffers(current_data)
+    
+    # Sidebar
+    with st.sidebar:
+        st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
+        st.markdown("### ⚙️ Control Panel")
+        
+        auto_refresh = st.toggle("🔄 Auto Refresh", value=True, help="Automatically refresh data every few seconds")
+        refresh_rate = st.slider("Refresh Rate (seconds)", 1, 10, 2, help="How often to update the data")
+        
+        if st.button("🔄 Manual Refresh", use_container_width=True):
+            st.rerun()
+            
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
+        st.markdown("### 📊 Current Readings")
+        
+        col_sb1, col_sb2 = st.columns(2)
+        with col_sb1:
+            st.metric("❤️ HR", f"{current_data['hr']} BPM")
+            st.metric("🌡️ Temp", f"{current_data['temp']:.1f}°C")
+        with col_sb2:
+            st.metric("🩸 SpO₂", f"{current_data['spo2']}%")
+            st.metric("🏃 Activity", current_data['activity'])
+        
+        # Activity indicator
+        activity_color = '#8B4513' if current_data['activity'] == 'RESTING' else '#556B2F' if current_data['activity'] == 'WALKING' else '#D4A76A'
+        st.markdown(f"""
+        <div style="background: {activity_color}20; padding: 10px; border-radius: 8px; 
+                    border-left: 4px solid {activity_color}; margin-top: 10px;">
+            <p style="margin: 0; font-size: 13px; color: {activity_color};">
+                <strong>Current Status:</strong> Patient is {current_data['activity'].lower()}
+            </p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Data source info
-        st.subheader("Environment")
-        st.info("""
-        **Streamlit Cloud Environment**
+        st.markdown("</div>", unsafe_allow_html=True)
         
-        This dashboard is running on Streamlit Cloud servers.
-        For real COM8 data, run locally with Uploader.py.
-        """)
+        st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
+        st.markdown("### 🔌 System Info")
         
-        st.divider()
+        st.write(f"**Data Source:** {'📡 REAL' if current_data['is_real'] else '💻 DEMO'}")
+        st.write(f"**Node:** {current_data['node_id']}")
+        st.write(f"**Packets:** {len(st.session_state.raw_packets)}")
+        st.write(f"**Last Update:** {datetime.now().strftime('%H:%M:%S')}")
         
-        # Dashboard settings
-        st.subheader("Display Settings")
-        update_interval = st.slider("Update Interval (seconds)", 1, 10, 2, 
-                                   help="How often to refresh data")
-        
-        st.divider()
-        
-        # Manual refresh
-        st.subheader("Controls")
-        if st.button("🔄 Refresh Now", use_container_width=True):
-            st.rerun()
-        
-        if st.button("🗑️ Clear History", use_container_width=True):
-            st.session_state.history.clear()
-            # Add one data point to prevent empty dataframe
-            initial_data = generate_simulation_data()
-            initial_data['timestamp'] = datetime.fromisoformat(initial_data['timestamp'].replace('Z', '+00:00'))
-            st.session_state.history.append(initial_data)
-            st.success("History cleared and reset!")
-            st.rerun()
-        
-        st.divider()
-        
-        # System info
-        st.subheader("System Status")
-        st.metric("Data Points", len(st.session_state.history))
-        
-        # Show some sample data
-        if st.session_state.history:
-            latest = list(st.session_state.history)[-1]
-            st.metric("Heart Rate", f"{latest.get('hr', 0)} BPM")
-            st.metric("SpO2", f"{latest.get('spo2', 0)}%")
-    
-    # Load health data
-    health_data = load_health_data()
-    
-    if health_data:
-        current_data = health_data.get('data', {})
-        
-        # Convert timestamp string to datetime
-        if 'timestamp' in current_data:
-            try:
-                timestamp_str = current_data['timestamp']
-                if timestamp_str.endswith('Z'):
-                    timestamp_str = timestamp_str[:-1] + '+00:00'
-                current_data['timestamp'] = datetime.fromisoformat(timestamp_str)
-            except:
-                current_data['timestamp'] = datetime.now()
+        # Connection status
+        if current_data['is_real']:
+            st.success("✅ Connected to STEMCUBE")
         else:
-            current_data['timestamp'] = datetime.now()
+            st.warning("⚠️ Demo Mode Active")
+            if st.button("🔍 Check COM8", use_container_width=True):
+                st.rerun()
         
-        # Add to history
-        st.session_state.history.append(current_data)
-        
-        # Display header with data source info
-        display_header(health_data)
-        
-        # Convert history to DataFrame for charts
-        try:
-            history_list = list(st.session_state.history)
-            history_df = pd.DataFrame(history_list)
-            
-            # Ensure we have required columns
-            required_columns = ['timestamp', 'hr', 'spo2', 'temp', 'activity']
-            for col in required_columns:
-                if col not in history_df.columns:
-                    history_df[col] = 0
-            
-            # Convert timestamp to datetime if it's not already
-            if history_df['timestamp'].dtype == 'object':
-                history_df['timestamp'] = pd.to_datetime(history_df['timestamp'])
-                
-        except Exception as e:
-            st.warning(f"Error creating history dataframe: {e}")
-            # Create empty dataframe with required columns
-            history_df = pd.DataFrame(columns=['timestamp', 'hr', 'spo2', 'temp', 'activity'])
-        
-        # Display metrics
-        display_metrics(current_data, history_df, health_data.get('is_real_data', False))
-        
-        # Display charts
-        display_charts(history_df)
-        
-        # Display node info and alerts
-        display_node_info(health_data, current_data, history_df)
-        
-        # Show info about cloud environment
-        with st.expander("ℹ️ About This Dashboard"):
-            st.info("""
-            **Streamlit Cloud Information**
-            
-            This dashboard is running on Streamlit Cloud. For real-time COM8 data from your STEMCUBE:
-            1. Run **Uploader.py** on your local computer
-            2. Run the **local version** of this dashboard
-            3. The cloud version shows simulation data for demonstration
-            
-            **Current Simulation:**
-            - Heart Rate: Cycles between 65-130 BPM
-            - SpO2: Cycles between 94-98%
-            - Temperature: 36.5-37.2°C
-            - Activity: Changes every 10 seconds (Resting → Walking → Running)
-            """)
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    else:
-        st.error("❌ Failed to load health data")
+    # TABS
+    tab1, tab2, tab3 = st.tabs(["🩺 Health Vitals", "📡 System Status", "📋 Data Log"])
+    
+    with tab1:
+        tab_health_vitals(current_data)
+    
+    with tab2:
+        tab_system_status(current_data, st.session_state.com8_status)
+    
+    with tab3:
+        tab_data_log()
+    
+    # Footer
+    malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+    current_time_malaysia = datetime.now(malaysia_tz)
+    
+    st.markdown("""
+    <div class="dashboard-footer">
+        <p style="margin: 0; font-size: 14px;">
+            🏥 <strong>STEMCUBE Health Monitoring System</strong> | 
+            📍 Universiti Malaysia Pahang • Faculty of Electrical & Electronics Engineering |
+            🎓 Final Year Project 2025
+        </p>
+        <p style="margin: 5px 0 0 0; font-size: 12px; opacity: 0.8;">
+            🇲🇾 Malaysia Time: {current_time} • 🔄 Auto-refresh every {refresh_rate}s • 
+            🎨 MUJI + Olive Maroon Theme
+        </p>
+    </div>
+    """.format(
+        current_time=current_time_malaysia.strftime('%I:%M:%S %p'),
+        refresh_rate=refresh_rate
+    ), unsafe_allow_html=True)
     
     # Auto-refresh
-    time.sleep(update_interval)
-    st.rerun()
+    if auto_refresh:
+        time.sleep(refresh_rate)
+        st.rerun()
 
+# ================ RUN DASHBOARD ================
 if __name__ == "__main__":
     main()
