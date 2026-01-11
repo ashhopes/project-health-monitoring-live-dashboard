@@ -1,7 +1,7 @@
-# dashboard_cloud.py - UPDATED WITH LOGO, CORRECT TIME & MUJI THEME
+# dashboard_cloud.py - UPDATED FOR REAL STEMCUBE DATA
 """
 REAL-TIME DASHBOARD FOR STEMCUBE
-WITH UMP LOGO, CORRECT TIME & MUJI THEME
+CONNECTED TO REAL STEMCUBE DATA FROM COM8
 """
 
 import streamlit as st
@@ -14,7 +14,7 @@ import time
 import pytz
 from collections import deque
 import base64
-from io import BytesIO
+import math
 
 # ================ TRY TO IMPORT SERIAL ================
 try:
@@ -22,6 +22,104 @@ try:
     SERIAL_AVAILABLE = True
 except ImportError:
     SERIAL_AVAILABLE = False
+
+# ================ PARSER FUNCTION ================
+def parse_real_stemcube_data(raw_line):
+    """Parse the ACTUAL STEMCUBE format: |timestamp|SpO2|HR|humidity|temperature|ax|ay|az|gx|gy|gz|activity|"""
+    
+    # Default values
+    data = {
+        'node_id': 'STEMCUBE_MASTER',
+        'hr': 72,
+        'spo2': 98,
+        'temp': 36.5,
+        'activity_level': 'RESTING',
+        'movement': 0.0,
+        'humidity': 50.0,
+        'confidence': 0.95,
+        'is_real': True,
+        'raw_packet': raw_line,
+        'parsed_success': False
+    }
+    
+    try:
+        print(f"📥 REAL STEMCUBE DATA: {raw_line[:80]}")
+        
+        # Remove leading/trailing pipes and split
+        cleaned = raw_line.strip('|')
+        parts = cleaned.split('|')
+        
+        # Expected: 12 parts
+        # Index: 0=timestamp, 1=SpO2, 2=HR, 3=humidity, 4=temp, 5=ax, 6=ay, 7=az, 
+        #         8=gx, 9=gy, 10=gz, 11=activity
+        
+        if len(parts) >= 12:
+            # Parse SpO2 (index 1)
+            try:
+                spo2_val = float(parts[1])
+                if 70 <= spo2_val <= 100:
+                    data['spo2'] = int(spo2_val)
+            except:
+                pass
+            
+            # Parse HR (index 2)
+            try:
+                hr_val = float(parts[2])
+                if 40 <= hr_val <= 200:
+                    data['hr'] = int(hr_val)
+            except:
+                pass
+            
+            # Parse Temperature (index 4)
+            try:
+                temp_val = float(parts[4])
+                if 20 <= temp_val <= 45:
+                    data['temp'] = round(temp_val, 1)
+            except:
+                pass
+            
+            # Parse Humidity (index 3)
+            try:
+                hum_val = float(parts[3])
+                data['humidity'] = hum_val
+            except:
+                pass
+            
+            # Parse Activity (index 11)
+            try:
+                activity_str = parts[11].strip().lower()
+                if 'walking' in activity_str:
+                    data['activity_level'] = 'WALKING'
+                    data['movement'] = 2.5
+                elif 'running' in activity_str:
+                    data['activity_level'] = 'RUNNING'
+                    data['movement'] = 4.0
+                elif 'standing' in activity_str:
+                    data['activity_level'] = 'STANDING'
+                    data['movement'] = 1.0
+                else:
+                    data['activity_level'] = 'RESTING'
+                    data['movement'] = 0.0
+            except:
+                pass
+            
+            # Calculate movement from gyroscope data
+            try:
+                gx = float(parts[8])
+                gy = float(parts[9])
+                gz = float(parts[10])
+                movement = math.sqrt(gx*gx + gy*gy + gz*gz)
+                data['movement'] = round(movement, 2)
+            except:
+                pass
+            
+            data['parsed_success'] = True
+            print(f"✅ PARSED: HR={data['hr']}, SpO2={data['spo2']}, Temp={data['temp']}, Activity={data['activity_level']}")
+            
+    except Exception as e:
+        print(f"⚠️ Parse error: {e}")
+    
+    return data
 
 # ================ PAGE CONFIG ================
 st.set_page_config(
@@ -38,10 +136,10 @@ AXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAZdSURBVHgB7d1BbhtHEIDRGRp5/4uyJ5ByYBwY
 wIF9YIC4h6QL2ySbe2d2B1jfRwEESfL/j1/f/vgJAPDavr1/AAD4IkEHAEkEHQCkEXQAkEbQAUAa
 QQcAaQQdAKQRdACQRtABQBpBBwBpBB0ApBF0AJBG0AFAGkE3wOsX3j/xAsA6V2y/Owg6AHh9j85S
 0AFAu6uzFHQA0GrGLAUdALSZNUtBBwAtZs9S0AHAy1bmKOgA4KWr8xN0APCy1fkJOgB4ycoMBR0A
-vGRljoIOAF6wOkdBBwDjrc5R0AHAaKtzFHQA0GLGPAUdAIw2Y56CDgDGmjVPQQcAI82cq6ADgHFm
+vGRljoIOAF6yOkdBBwDjrc5R0AHAaKtzFHQA0GLGPAUdAIw2Y56CDgDGmjVPQQcAI82cq6ADgHFm
 zlXQAcAos2cr6ABgjNnzFXQAMMLq+Qo6AFhu9YwFHQAsN3vGgg4Alpo9Z0EHAEvNnrOgA4BlVsxZ
 0AHAEitmLegAYL4VsxZ0ADDXilkLOgCYa9W8BR0AzLNq3oIOAOZZNW9BBwDzrJq3oAOAeVbNW9AB
-wByr5i3oAGCeVfMWdAAwz6p5CzoAmGflzAUdAMyxcuaCDgDmWDlzQQcAc6ycuaADgBlWz13QAcD1
+wByr5i3oAGCeVfMWdAAwx6p5CzoAmGflzAUdAMyxcuaCDgDmWDlzQQcAc6ycuaADgBlWz13QAcD1
 Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
 z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
 XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
@@ -144,8 +242,44 @@ Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
 z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
 XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
 0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
-AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AGA9//4HZRl
-AQAt9zY4AAAAAElFTkSuQmCC
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1
+Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVW
+z13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbP
+XdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d
+0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13Q
+AcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdAB
+wPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA9VbPXdABwPVWz13QAcD1Vs9d0AHA
+9VbPXdABwPVWz13QAcD1Vs9d0AGA9//4HZRlAQAt9zY4AAAAAElFTkSuQmCC
 """
 
 # ================ MUJI + OLIVE MARROON THEME ================
@@ -395,14 +529,84 @@ def init_session_state():
         # Connection status
         st.session_state.com8_status = "Checking..."
 
+# ================ READ REAL STEMCUBE DATA ================
+def read_com8_direct():
+    """Read REAL STEMCUBE data from COM8"""
+    if not SERIAL_AVAILABLE:
+        return None, "Serial library not installed"
+    
+    try:
+        ser = serial.Serial('COM8', 9600, timeout=0.5)
+        
+        if ser.in_waiting > 0:
+            raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
+            ser.close()
+            
+            if raw_line and raw_line.startswith('|'):
+                print(f"📥 RAW FROM STEMCUBE: {raw_line[:80]}")
+                
+                # Parse using the REAL STEMCUBE parser
+                parsed = parse_real_stemcube_data(raw_line)
+                
+                if parsed['parsed_success']:
+                    data = {
+                        'timestamp': datetime.now(),
+                        'hr': parsed['hr'],
+                        'spo2': parsed['spo2'],
+                        'temp': parsed['temp'],
+                        'movement': parsed['movement'],
+                        'activity': parsed['activity_level'],
+                        'packet_id': int(time.time() * 100) % 10000,
+                        'node_id': parsed['node_id'],
+                        'is_real': True,
+                        'raw': raw_line[:60],
+                        'humidity': parsed.get('humidity', 0.0)
+                    }
+                    
+                    # Add status indicators
+                    data['hr_status'] = "NORMAL"
+                    if data['hr'] > 120:
+                        data['hr_status'] = "CRITICAL"
+                    elif data['hr'] > 100:
+                        data['hr_status'] = "WARNING"
+                        
+                    data['spo2_status'] = "NORMAL"
+                    if data['spo2'] < 90:
+                        data['spo2_status'] = "CRITICAL"
+                    elif data['spo2'] < 95:
+                        data['spo2_status'] = "WARNING"
+                        
+                    data['temp_status'] = "NORMAL"
+                    if data['temp'] > 38.0:
+                        data['temp_status'] = "CRITICAL"
+                    elif data['temp'] > 37.0:
+                        data['temp_status'] = "WARNING"
+                    
+                    # Store raw packet
+                    st.session_state.raw_packets.append({
+                        'time': datetime.now().strftime('%H:%M:%S'),
+                        'packet': raw_line[:80]
+                    })
+                    
+                    print(f"✅ PARSED: HR={data['hr']}, SpO2={data['spo2']}, Temp={data['temp']}, Activity={data['activity']}")
+                    return data, "✅ Connected to STEMCUBE"
+                else:
+                    return None, "✅ Connected (Parsing failed)"
+        
+        ser.close()
+        return None, "⏳ Waiting for STEMCUBE data..."
+        
+    except serial.SerialException:
+        return None, "❌ COM8 not available"
+    except Exception as e:
+        print(f"COM8 Error: {e}")
+        return None, f"⚠️ COM8 error"
+
 # ================ DISPLAY HEADER WITH LOGO ================
 def display_header():
     """Display header with UMP logo"""
     malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
     current_time_malaysia = datetime.now(malaysia_tz)
-    
-    # Decode and display logo
-    logo_data = base64.b64decode(UMP_LOGO_BASE64)
     
     st.markdown(f"""
     <div class="main-header">
@@ -410,7 +614,7 @@ def display_header():
             <img src="data:image/png;base64,{UMP_LOGO_BASE64}" class="logo-img">
         </div>
         <div style="margin-left: 80px;">
-            <h1 style="margin: 0; font-size: 2.2rem; font-weight: 700;">🏥 STEMCUBE HEALTH MONITORING SYSTEM</h1>
+            <h1 style="margin: 0; font-size: 2.2rem; font-weight: 700;">🏥 STEMCUBE REAL-TIME MONITOR</h1>
             <p style="margin: 8px 0 0 0; font-size: 1.1rem; opacity: 0.95;">
                 📍 Universiti Malaysia Pahang • 🎓 Final Year Project 2025
             </p>
@@ -422,101 +626,22 @@ def display_header():
     </div>
     """, unsafe_allow_html=True)
 
-# ================ SIMPLE COM8 READER ================
-def read_com8_direct():
-    """Read DIRECTLY from COM8"""
-    if not SERIAL_AVAILABLE:
-        return None, "Serial library not installed"
-    
-    try:
-        ser = serial.Serial('COM8', 9600, timeout=0.5)
-        
-        if ser.in_waiting > 0:
-            raw_line = ser.readline().decode('utf-8', errors='ignore').strip()
-            ser.close()
-            
-            if raw_line:
-                # Parse data
-                data = {
-                    'timestamp': datetime.now(),
-                    'hr': 75,
-                    'spo2': 98,
-                    'temp': 36.5,
-                    'movement': 1.0,
-                    'activity': 'RESTING',
-                    'packet_id': int(time.time() * 100) % 10000,
-                    'node_id': 'NODE_e661',
-                    'is_real': True,
-                    'raw': raw_line[:60]
-                }
-                
-                # Parse based on common formats
-                try:
-                    # Format: HR:XX|SpO2:XX|TEMP:XX|ACT:XXX
-                    if '|' in raw_line:
-                        parts = raw_line.split('|')
-                        for part in parts:
-                            if 'HR:' in part:
-                                data['hr'] = int(''.join(filter(str.isdigit, part.split('HR:')[1]))[:3])
-                            elif 'SpO2:' in part:
-                                data['spo2'] = int(''.join(filter(str.isdigit, part.split('SpO2:')[1]))[:3])
-                            elif 'TEMP:' in part:
-                                temp_str = part.split('TEMP:')[1]
-                                data['temp'] = float(''.join([c for c in temp_str if c.isdigit() or c == '.']))
-                            elif 'ACT:' in part:
-                                data['activity'] = part.split('ACT:')[1].strip()
-                    
-                    # Format: XX,XX,XX,XXX
-                    elif ',' in raw_line and ':' not in raw_line:
-                        parts = raw_line.split(',')
-                        if len(parts) >= 4:
-                            data['hr'] = int(parts[0]) if parts[0].isdigit() else 75
-                            data['spo2'] = int(parts[1]) if parts[1].isdigit() else 98
-                            data['temp'] = float(parts[2]) if parts[2].replace('.', '').isdigit() else 36.5
-                            data['activity'] = parts[3]
-                
-                except:
-                    pass
-                
-                # Store raw packet
-                st.session_state.raw_packets.append({
-                    'time': datetime.now().strftime('%H:%M:%S'),
-                    'packet': raw_line[:50]
-                })
-                
-                return data, "✅ Connected to COM8"
-        
-        ser.close()
-        return None, "⏳ Waiting for COM8 data..."
-        
-    except serial.SerialException:
-        return None, "❌ COM8 not available"
-    except Exception as e:
-        return None, f"⚠️ COM8 error: {str(e)[:40]}"
-
+# ================ DEMO DATA ================
 def get_demo_data():
-    """Generate realistic demo data for 6:50 AM"""
+    """Generate demo data"""
     current_time = datetime.now()
-    
-    # Morning values (6:50 AM) - typically resting
-    # Realistic morning vitals:
-    # - HR: 60-75 (resting in morning)
-    # - SpO2: 96-99 (normal)
-    # - Temp: 36.3-36.8 (morning temperature)
     
     base_hr = 68 + np.random.normal(0, 4)
     base_spo2 = 97 + np.random.normal(0, 1)
     base_temp = 36.5 + np.random.normal(0, 0.2)
     
-    # Morning activity - likely RESTING or light movement
-    activities = ['RESTING', 'RESTING', 'RESTING', 'WALKING']  # 75% resting, 25% walking in morning
+    activities = ['RESTING', 'RESTING', 'RESTING', 'WALKING']
     activity = np.random.choice(activities)
     
     if activity == 'RESTING':
         movement = 0.5 + np.random.random() * 0.5
-        # Adjust HR for resting
         base_hr = max(60, min(75, base_hr))
-    else:  # WALKING
+    else:
         movement = 1.5 + np.random.random() * 1.0
         base_hr = max(75, min(90, base_hr))
     
@@ -528,11 +653,12 @@ def get_demo_data():
         'movement': round(movement, 1),
         'activity': activity,
         'packet_id': int(time.time() * 100) % 10000,
-        'node_id': 'NODE_e661',
+        'node_id': 'STEMCUBE_MASTER',
         'is_real': False,
-        'raw': 'DEMO: Morning vitals (6:50 AM)'
+        'raw': 'DEMO: Simulated data'
     }
 
+# ================ UPDATE DATA BUFFERS ================
 def update_data_buffers(data):
     """Update all data buffers"""
     st.session_state.timestamps.append(data['timestamp'])
@@ -542,7 +668,7 @@ def update_data_buffers(data):
     st.session_state.movement_data.append(data['movement'])
     
     # Store complete record
-    st.session_state.all_data.append({
+    record = {
         'timestamp': data['timestamp'],
         'hr': data['hr'],
         'spo2': data['spo2'],
@@ -550,7 +676,9 @@ def update_data_buffers(data):
         'movement': data['movement'],
         'activity': data['activity'],
         'is_real': data['is_real']
-    })
+    }
+    
+    st.session_state.all_data.append(record)
 
 # ================ GRAPH FUNCTIONS ================
 def create_graph(title, y_data, color, y_label):
@@ -590,7 +718,7 @@ def create_graph(title, y_data, color, y_label):
 
 # ================ TAB 1: HEALTH VITALS ================
 def tab_health_vitals(current_data):
-    """Tab 1: Health Vitals with MUJI theme"""
+    """Tab 1: Health Vitals"""
     
     # Activity display with emoji
     col_activity = st.columns([1, 2, 1])
@@ -745,10 +873,9 @@ def tab_system_status(current_data, com8_status):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         st.markdown("### 📡 Connection Status")
         
-        # Connection status with icon
+        # Connection status
         if "✅ Connected" in com8_status:
             st.success(f"**{com8_status}**")
-            st.balloons()
         elif "❌" in com8_status:
             st.error(f"**{com8_status}**")
         elif "⚠️" in com8_status:
@@ -756,7 +883,7 @@ def tab_system_status(current_data, com8_status):
         else:
             st.info(f"**{com8_status}**")
         
-        # Data source indicator
+        # Data source
         st.markdown("---")
         if current_data['is_real']:
             st.markdown("""
@@ -764,7 +891,7 @@ def tab_system_status(current_data, com8_status):
                         padding: 15px; border-radius: 10px; border-left: 4px solid #4CAF50;">
                 <h4 style="color: #2E7D32; margin: 0 0 10px 0;">🌐 REAL DATA MODE</h4>
                 <p style="color: #666; margin: 0; font-size: 14px;">
-                    Receiving live data from STEMCUBE Master via COM8
+                    Receiving live data from STEMCUBE via COM8
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -790,7 +917,7 @@ def tab_system_status(current_data, com8_status):
         st.markdown("<div class='graph-container'>", unsafe_allow_html=True)
         st.markdown("### 🔋 System Health")
         
-        # Battery gauge with MUJI colors
+        # Battery gauge
         battery = 85
         fig_battery = go.Figure(go.Indicator(
             mode="gauge+number",
@@ -846,11 +973,10 @@ def tab_system_status(current_data, com8_status):
             st.code(f"{packet['time']}: {packet['packet']}")
     else:
         st.info("Waiting for data packets...")
-        # Show sample format
         st.markdown("""
         **Expected STEMCUBE Format:**
         ```
-        HR:72|SpO2:98|TEMP:36.5|ACT:RESTING|BAT:85
+        |timestamp|SpO2|HR|humidity|temperature|ax|ay|az|gx|gy|gz|activity|
         ```
         """)
     
@@ -947,7 +1073,7 @@ def main():
         st.markdown("<div class='sidebar-section'>", unsafe_allow_html=True)
         st.markdown("### ⚙️ Control Panel")
         
-        auto_refresh = st.toggle("🔄 Auto Refresh", value=True, help="Automatically refresh data every few seconds")
+        auto_refresh = st.toggle("🔄 Auto Refresh", value=True, help="Automatically refresh data")
         refresh_rate = st.slider("Refresh Rate (seconds)", 1, 10, 2, help="How often to update the data")
         
         if st.button("🔄 Manual Refresh", use_container_width=True):
