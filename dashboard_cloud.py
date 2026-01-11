@@ -6,10 +6,9 @@ from datetime import datetime, timedelta
 import time
 import numpy as np
 from collections import deque
-import serial
-import threading
-import queue
-import re
+import json
+import os
+import requests  # For API calls if needed
 
 # ========== PAGE CONFIGURATION ==========
 st.set_page_config(
@@ -103,213 +102,232 @@ st.markdown("""
         background: #fadbd8;
         color: #e74c3c;
     }
+    
+    /* Data source indicator */
+    .data-source-real {
+        background: #d5f4e6;
+        color: #27ae60;
+        padding: 5px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .data-source-sim {
+        background: #fdebd0;
+        color: #f39c12;
+        padding: 5px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== DATA PARSING FUNCTIONS ==========
-def parse_health_data(data_string):
-    """Parse health data from string format"""
+# ========== DATA LOADING FUNCTIONS ==========
+def load_health_data():
+    """Load health data - for Streamlit Cloud, we'll use simulated data or API"""
+    # On Streamlit Cloud, we can't access local files directly
+    # So we'll use simulation mode or fetch from an API
+    
     try:
-        # Parse format: HR:58|SpO2:71|TEMP:9.1|ACT:8.826|MOV:-0.087|NODE:NODE_e661
-        data = {}
+        # OPTION 1: Try to load from a URL (if you have an API)
+        # api_url = "https://your-api.com/health-data"
+        # response = requests.get(api_url, timeout=5)
+        # if response.status_code == 200:
+        #     return response.json()
         
-        # Extract using regex
-        hr_match = re.search(r'HR:([\d\.]+)', data_string)
-        spo2_match = re.search(r'SpO2:([\d\.]+)', data_string)
-        temp_match = re.search(r'TEMP:([\d\.]+)', data_string)
-        act_match = re.search(r'ACT:([\d\.]+)', data_string)
-        mov_match = re.search(r'MOV:([-\d\.]+)', data_string)
-        node_match = re.search(r'NODE:(\w+)', data_string)
+        # OPTION 2: Use built-in simulation for Streamlit Cloud
+        current_time = datetime.now()
         
-        if hr_match:
-            data['hr'] = float(hr_match.group(1))
-            data['hr'] = max(30, min(data['hr'], 200))  # Clamp to reasonable range
-        else:
-            data['hr'] = 72.0
-            
-        if spo2_match:
-            data['spo2'] = float(spo2_match.group(1))
-            data['spo2'] = max(70, min(data['spo2'], 100))
-        else:
-            data['spo2'] = 98.0
-            
-        if temp_match:
-            data['temp'] = float(temp_match.group(1))
-            data['temp'] = max(0, min(data['temp'], 50))
-        else:
-            data['temp'] = 25.0
-            
-        if act_match:
-            data['activity'] = float(act_match.group(1))
-        else:
-            data['activity'] = 0.0
-            
-        if mov_match:
-            data['movement'] = float(mov_match.group(1))
-        else:
-            data['movement'] = 0.0
-            
-        if node_match:
-            data['node_id'] = node_match.group(1)
-        else:
-            data['node_id'] = "UNKNOWN"
-            
-        data['timestamp'] = datetime.now()
+        # Generate simulation data for cloud
+        simulation_data = generate_simulation_data()
         
-        # Determine activity level
-        if data['activity'] < 1.0:
-            data['activity_level'] = "RESTING"
-        elif data['activity'] < 2.0:
-            data['activity_level'] = "WALKING"
-        else:
-            data['activity_level'] = "RUNNING"
-            
-        # Determine status
-        data['hr_status'] = "NORMAL"
-        if data['hr'] > 120:
-            data['hr_status'] = "CRITICAL"
-        elif data['hr'] > 100:
-            data['hr_status'] = "WARNING"
-            
-        data['spo2_status'] = "NORMAL"
-        if data['spo2'] < 90:
-            data['spo2_status'] = "CRITICAL"
-        elif data['spo2'] < 95:
-            data['spo2_status'] = "WARNING"
-            
-        data['temp_status'] = "NORMAL"
-        if data['temp'] > 38.0:
-            data['temp_status'] = "CRITICAL"
-        elif data['temp'] > 37.0:
-            data['temp_status'] = "WARNING"
-            
-        return data
+        return {
+            'status': 'connected',
+            'last_update': current_time.isoformat(),
+            'is_real_data': False,  # On cloud, it's always simulation
+            'data_source': 'STREAMLIT_CLOUD_SIMULATION',
+            'parsed_success': True,
+            'data': simulation_data
+        }
         
     except Exception as e:
-        print(f"Error parsing data: {e}")
-        return None
+        st.error(f"Error loading data: {e}")
+        # Fallback to basic simulation
+        return {
+            'status': 'disconnected',
+            'last_update': datetime.now().isoformat(),
+            'is_real_data': False,
+            'data_source': 'FALLBACK_SIMULATION',
+            'parsed_success': False,
+            'data': {
+                'hr': 72, 'spo2': 98, 'temp': 36.5,
+                'activity_level': 'RESTING',
+                'movement': 0.0,
+                'node_id': 'NODE_e661',
+                'timestamp': datetime.now().isoformat(),
+                'malaysia_time': datetime.now().strftime('%H:%M:%S'),
+                'hr_status': 'NORMAL',
+                'spo2_status': 'NORMAL',
+                'temp_status': 'NORMAL',
+                'activity': 0.0
+            }
+        }
 
-# ========== SERIAL READER ==========
-class SerialReader:
-    def __init__(self, port='COM8', baudrate=9600):
-        self.port = port
-        self.baudrate = baudrate
-        self.serial_conn = None
-        self.data_queue = queue.Queue()
-        self.running = False
-        self.thread = None
+def generate_simulation_data():
+    """Generate realistic simulation data for Streamlit Cloud"""
+    current_time = datetime.now()
+    
+    # Cycle through different activities
+    activity_cycle = ['RESTING', 'WALKING', 'RUNNING']
+    cycle_index = (int(time.time()) // 10) % 3  # Change every 10 seconds
+    
+    activity = activity_cycle[cycle_index]
+    
+    # Base values for each activity
+    if activity == 'RESTING':
+        hr = 65 + np.random.randint(-5, 6)
+        spo2 = 97 + np.random.randint(-1, 2)
+        temp = 36.5 + np.random.uniform(-0.2, 0.2)
+        movement = np.random.uniform(0.0, 0.3)
+        activity_score = np.random.uniform(0.0, 1.0)
+    elif activity == 'WALKING':
+        hr = 85 + np.random.randint(-10, 11)
+        spo2 = 96 + np.random.randint(-2, 1)
+        temp = 36.8 + np.random.uniform(-0.3, 0.3)
+        movement = np.random.uniform(0.5, 1.5)
+        activity_score = np.random.uniform(1.5, 3.0)
+    else:  # RUNNING
+        hr = 115 + np.random.randint(-15, 16)
+        spo2 = 94 + np.random.randint(-3, 1)
+        temp = 37.2 + np.random.uniform(-0.4, 0.4)
+        movement = np.random.uniform(1.5, 3.0)
+        activity_score = np.random.uniform(3.0, 5.0)
+    
+    # Add status indicators
+    hr_status = "NORMAL"
+    if hr > 120:
+        hr_status = "CRITICAL"
+    elif hr > 100:
+        hr_status = "WARNING"
         
-    def start(self):
-        """Start serial reading thread"""
-        try:
-            self.serial_conn = serial.Serial(
-                port=self.port,
-                baudrate=self.baudrate,
-                timeout=1
-            )
-            self.running = True
-            self.thread = threading.Thread(target=self._read_serial)
-            self.thread.daemon = True
-            self.thread.start()
-            st.success(f"Connected to {self.port} at {self.baudrate} baud")
-            return True
-        except Exception as e:
-            st.error(f"Failed to connect to {self.port}: {e}")
-            return False
+    spo2_status = "NORMAL"
+    if spo2 < 90:
+        spo2_status = "CRITICAL"
+    elif spo2 < 95:
+        spo2_status = "WARNING"
+        
+    temp_status = "NORMAL"
+    if temp > 38.0:
+        temp_status = "CRITICAL"
+    elif temp > 37.0:
+        temp_status = "WARNING"
     
-    def _read_serial(self):
-        """Read data from serial port"""
-        while self.running:
-            try:
-                if self.serial_conn and self.serial_conn.in_waiting > 0:
-                    line = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
-                    if line and "NODE:" in line:
-                        self.data_queue.put(line)
-            except Exception as e:
-                print(f"Serial read error: {e}")
-                time.sleep(0.1)
-    
-    def get_data(self):
-        """Get data from queue"""
-        if not self.data_queue.empty():
-            return self.data_queue.get()
-        return None
-    
-    def stop(self):
-        """Stop serial reading"""
-        self.running = False
-        if self.serial_conn:
-            self.serial_conn.close()
+    return {
+        'hr': hr,
+        'spo2': spo2,
+        'temp': temp,
+        'activity_level': activity,
+        'movement': movement,
+        'activity': activity_score,
+        'node_id': 'NODE_e661',
+        'timestamp': current_time.isoformat(),
+        'malaysia_time': current_time.strftime('%H:%M:%S'),
+        'hr_status': hr_status,
+        'spo2_status': spo2_status,
+        'temp_status': temp_status,
+        'confidence': np.random.uniform(0.85, 0.99),
+        'battery': 85,
+        'rssi': -65
+    }
 
 # ========== DASHBOARD COMPONENTS ==========
-def display_header():
-    """Display dashboard header"""
+def display_header(health_data):
+    """Display dashboard header with data source info"""
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("""
+        data_source = health_data.get('data_source', 'UNKNOWN')
+        is_real = health_data.get('is_real_data', False)
+        
+        source_badge = "🔴 REAL DATA" if is_real else "🟡 STREAMLIT CLOUD SIMULATION"
+        source_color = "#27ae60" if is_real else "#f39c12"
+        
+        st.markdown(f"""
         <div class="dashboard-header">
-            <h1 style="margin:0; font-size: 2.5rem;">🏥 REAL-TIME HEALTH MONITORING</h1>
+            <h1 style="margin:0; font-size: 2.5rem;">🏥 HEALTH MONITORING DASHBOARD</h1>
             <p style="margin:10px 0 0 0; font-size: 1.2rem; opacity: 0.9;">
-                Wireless Multi-Node Patient Monitoring System
+                Cloud-Based Monitoring System
             </p>
+            <div style="margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 10px;">
+                <span style="background: {source_color}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold;">
+                    {source_badge}
+                </span>
+                <span style="color: rgba(255,255,255,0.8);">{data_source}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-def display_metrics(current_data, history_df):
+def display_metrics(current_data, history_df, is_real_data):
     """Display health metrics"""
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        hr_status_class = "critical" if current_data['hr_status'] == "CRITICAL" else "warning" if current_data['hr_status'] == "WARNING" else "normal"
+        hr_status = current_data.get('hr_status', 'NORMAL')
+        hr_status_class = "critical" if hr_status == "CRITICAL" else "warning" if hr_status == "WARNING" else "normal"
         st.markdown(f"""
         <div class="metric-card {hr_status_class}">
             <div class="metric-label">HEART RATE</div>
-            <div class="metric-value">{current_data['hr']:.0f} BPM</div>
-            <div class="status-badge status-{current_data['hr_status'].lower()}">{current_data['hr_status']}</div>
-            <div style="margin-top: 10px; font-size: 12px;">
+            <div class="metric-value">{current_data.get('hr', 72):.0f} BPM</div>
+            <div class="status-badge status-{hr_status.lower()}">{hr_status}</div>
+            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
                 📊 Avg: {history_df['hr'].mean():.0f} BPM
             </div>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        spo2_status_class = "critical" if current_data['spo2_status'] == "CRITICAL" else "warning" if current_data['spo2_status'] == "WARNING" else "normal"
+        spo2_status = current_data.get('spo2_status', 'NORMAL')
+        spo2_status_class = "critical" if spo2_status == "CRITICAL" else "warning" if spo2_status == "WARNING" else "normal"
         st.markdown(f"""
         <div class="metric-card {spo2_status_class}">
             <div class="metric-label">OXYGEN SATURATION</div>
-            <div class="metric-value">{current_data['spo2']:.0f} %</div>
-            <div class="status-badge status-{current_data['spo2_status'].lower()}">{current_data['spo2_status']}</div>
-            <div style="margin-top: 10px; font-size: 12px;">
+            <div class="metric-value">{current_data.get('spo2', 98):.0f} %</div>
+            <div class="status-badge status-{spo2_status.lower()}">{spo2_status}</div>
+            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
                 📊 Avg: {history_df['spo2'].mean():.0f} %
             </div>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
-        temp_status_class = "critical" if current_data['temp_status'] == "CRITICAL" else "warning" if current_data['temp_status'] == "WARNING" else "normal"
+        temp_status = current_data.get('temp_status', 'NORMAL')
+        temp_status_class = "critical" if temp_status == "CRITICAL" else "warning" if temp_status == "WARNING" else "normal"
         st.markdown(f"""
         <div class="metric-card {temp_status_class}">
             <div class="metric-label">BODY TEMPERATURE</div>
-            <div class="metric-value">{current_data['temp']:.1f} °C</div>
-            <div class="status-badge status-{current_data['temp_status'].lower()}">{current_data['temp_status']}</div>
-            <div style="margin-top: 10px; font-size: 12px;">
+            <div class="metric-value">{current_data.get('temp', 36.5):.1f} °C</div>
+            <div class="status-badge status-{temp_status.lower()}">{temp_status}</div>
+            <div style="margin-top: 10px; font-size: 12px; color: #7f8c8d;">
                 📊 Avg: {history_df['temp'].mean():.1f} °C
             </div>
         </div>
         """, unsafe_allow_html=True)
     
     with col4:
-        activity_color = "#2ecc71" if current_data['activity_level'] == "RESTING" else "#f39c12" if current_data['activity_level'] == "WALKING" else "#e74c3c"
+        activity_level = current_data.get('activity_level', 'RESTING')
+        activity_color = "#2ecc71" if activity_level == "RESTING" else "#f39c12" if activity_level == "WALKING" else "#e74c3c"
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">ACTIVITY LEVEL</div>
-            <div class="metric-value" style="color: {activity_color};">{current_data['activity_level']}</div>
+            <div class="metric-value" style="color: {activity_color};">{activity_level}</div>
             <div style="margin-top: 10px; font-size: 14px; color: #7f8c8d;">
-                Intensity: {current_data['activity']:.2f}
+                Intensity: {current_data.get('activity', 0.0):.2f}
             </div>
-            <div style="font-size: 12px; margin-top: 5px;">
-                Movement: {current_data['movement']:.3f} g
+            <div style="font-size: 12px; margin-top: 5px; color: #7f8c8d;">
+                Movement: {current_data.get('movement', 0.0):.3f} g
             </div>
+            {f'<div style="font-size: 12px; margin-top: 5px; color: #9b59b6;">🎯 ML Confidence: {current_data.get("confidence", 0.95):.2f}</div>' if 'confidence' in current_data else ''}
         </div>
         """, unsafe_allow_html=True)
 
@@ -393,20 +411,30 @@ def display_charts(history_df):
             
             st.plotly_chart(fig, use_container_width=True)
 
-def display_node_info(current_data, history_df):
+def display_node_info(health_data, current_data, history_df):
     """Display node information and alerts"""
     col1, col2 = st.columns([1, 2])
     
     with col1:
         st.subheader("📱 Device Information")
         
+        last_update = health_data.get('last_update', datetime.now().isoformat())
+        try:
+            last_update_time = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+            last_update_str = last_update_time.strftime('%H:%M:%S')
+        except:
+            last_update_str = "Unknown"
+        
+        status_color = "#27ae60" if health_data.get('is_real_data', False) else "#f39c12"
+        status_text = "● REAL DATA" if health_data.get('is_real_data', False) else "● STREAMLIT CLOUD"
+        
         st.markdown(f"""
         <div class="metric-card">
             <div style="display: flex; align-items: center; margin-bottom: 15px;">
                 <div style="font-size: 24px; margin-right: 10px;">📱</div>
                 <div>
-                    <div style="font-weight: bold; font-size: 18px;">{current_data['node_id']}</div>
-                    <div style="color: #7f8c8d; font-size: 14px;">Wearable Health Monitor</div>
+                    <div style="font-weight: bold; font-size: 18px;">{current_data.get('node_id', 'NODE_e661')}</div>
+                    <div style="color: #7f8c8d; font-size: 14px;">Virtual Wearable Monitor</div>
                 </div>
             </div>
             
@@ -417,11 +445,15 @@ def display_node_info(current_data, history_df):
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <span>Last Update:</span>
-                    <span style="font-weight: bold;">{current_data['timestamp'].strftime('%H:%M:%S')}</span>
+                    <span style="font-weight: bold;">{last_update_str}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>Source:</span>
+                    <span style="color: {status_color}; font-weight: bold;">{status_text}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                    <span>Connection:</span>
-                    <span style="color: #27ae60; font-weight: bold;">● LIVE</span>
+                    <span>Environment:</span>
+                    <span style="color: #3498db; font-weight: bold;">☁️ Streamlit Cloud</span>
                 </div>
             </div>
         </div>
@@ -432,20 +464,23 @@ def display_node_info(current_data, history_df):
         
         alerts = []
         
-        if current_data['hr_status'] == "CRITICAL":
-            alerts.append(("🚨 Critical Heart Rate", f"Heart rate is critically high at {current_data['hr']:.0f} BPM", "critical"))
-        elif current_data['hr_status'] == "WARNING":
-            alerts.append(("⚠️ Elevated Heart Rate", f"Heart rate is elevated at {current_data['hr']:.0f} BPM", "warning"))
+        hr_status = current_data.get('hr_status', 'NORMAL')
+        if hr_status == "CRITICAL":
+            alerts.append(("🚨 Critical Heart Rate", f"Heart rate is critically high at {current_data.get('hr', 72):.0f} BPM", "critical"))
+        elif hr_status == "WARNING":
+            alerts.append(("⚠️ Elevated Heart Rate", f"Heart rate is elevated at {current_data.get('hr', 72):.0f} BPM", "warning"))
             
-        if current_data['spo2_status'] == "CRITICAL":
-            alerts.append(("🚨 Low Oxygen", f"SpO2 is critically low at {current_data['spo2']:.0f}%", "critical"))
-        elif current_data['spo2_status'] == "WARNING":
-            alerts.append(("⚠️ Low Oxygen", f"SpO2 is low at {current_data['spo2']:.0f}%", "warning"))
+        spo2_status = current_data.get('spo2_status', 'NORMAL')
+        if spo2_status == "CRITICAL":
+            alerts.append(("🚨 Low Oxygen", f"SpO2 is critically low at {current_data.get('spo2', 98):.0f}%", "critical"))
+        elif spo2_status == "WARNING":
+            alerts.append(("⚠️ Low Oxygen", f"SpO2 is low at {current_data.get('spo2', 98):.0f}%", "warning"))
             
-        if current_data['temp_status'] == "CRITICAL":
-            alerts.append(("🚨 High Temperature", f"Temperature is critically high at {current_data['temp']:.1f}°C", "critical"))
-        elif current_data['temp_status'] == "WARNING":
-            alerts.append(("⚠️ Elevated Temperature", f"Temperature is elevated at {current_data['temp']:.1f}°C", "warning"))
+        temp_status = current_data.get('temp_status', 'NORMAL')
+        if temp_status == "CRITICAL":
+            alerts.append(("🚨 High Temperature", f"Temperature is critically high at {current_data.get('temp', 36.5):.1f}°C", "critical"))
+        elif temp_status == "WARNING":
+            alerts.append(("⚠️ Elevated Temperature", f"Temperature is elevated at {current_data.get('temp', 36.5):.1f}°C", "warning"))
         
         if alerts:
             for alert_title, alert_msg, alert_type in alerts:
@@ -476,22 +511,6 @@ def main():
     # Initialize session state
     if 'history' not in st.session_state:
         st.session_state.history = deque(maxlen=100)  # Store last 100 readings
-    if 'serial_reader' not in st.session_state:
-        st.session_state.serial_reader = None
-    if 'current_data' not in st.session_state:
-        st.session_state.current_data = {
-            'hr': 72.0, 'spo2': 98.0, 'temp': 25.0,
-            'activity': 0.0, 'movement': 0.0,
-            'node_id': 'NODE_e661',
-            'timestamp': datetime.now(),
-            'hr_status': 'NORMAL',
-            'spo2_status': 'NORMAL',
-            'temp_status': 'NORMAL',
-            'activity_level': 'RESTING'
-        }
-    
-    # Display header
-    display_header()
     
     # Sidebar for configuration
     with st.sidebar:
@@ -501,98 +520,108 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # Serial port configuration
-        st.subheader("Serial Connection")
-        port = st.selectbox("COM Port", ["COM8", "COM3", "COM4", "COM5", "COM6", "COM7"])
-        baudrate = st.selectbox("Baud Rate", [9600, 115200, 57600, 38400, 19200])
+        # Data source info
+        st.subheader("Environment")
+        st.info("""
+        **Streamlit Cloud Environment**
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔗 Connect", use_container_width=True):
-                if st.session_state.serial_reader:
-                    st.session_state.serial_reader.stop()
-                st.session_state.serial_reader = SerialReader(port=port, baudrate=baudrate)
-                if st.session_state.serial_reader.start():
-                    st.rerun()
-        
-        with col2:
-            if st.button("🔴 Disconnect", use_container_width=True):
-                if st.session_state.serial_reader:
-                    st.session_state.serial_reader.stop()
-                    st.session_state.serial_reader = None
-                    st.success("Disconnected")
-                    st.rerun()
+        This dashboard is running on Streamlit Cloud servers.
+        For real COM8 data, run locally with Uploader.py.
+        """)
         
         st.divider()
         
         # Dashboard settings
         st.subheader("Display Settings")
-        history_length = st.slider("History Length (seconds)", 30, 300, 60)
-        update_interval = st.slider("Update Interval (ms)", 100, 2000, 500)
+        update_interval = st.slider("Update Interval (seconds)", 1, 10, 2, 
+                                   help="How often to refresh data")
         
         st.divider()
         
-        # Simulated data option
-        st.subheader("Test Mode")
-        use_simulated = st.checkbox("Use Simulated Data", value=False)
+        # Manual refresh
+        st.subheader("Controls")
+        if st.button("🔄 Refresh Now", use_container_width=True):
+            st.rerun()
         
-        if use_simulated:
-            st.info("Using simulated data for testing")
+        if st.button("🗑️ Clear History", use_container_width=True):
+            st.session_state.history.clear()
+            st.success("History cleared!")
+            st.rerun()
+        
+        if st.button("🔄 Reset Simulation", use_container_width=True):
+            st.session_state.history.clear()
+            st.rerun()
         
         st.divider()
         
         # System info
         st.subheader("System Status")
-        st.metric("Data Points", len(st.session_state.history))
-        if st.session_state.serial_reader and st.session_state.serial_reader.running:
-            st.success("Connected to serial")
+        
+        # Load current data to show status
+        health_data = load_health_data()
+        if health_data:
+            current_data = health_data.get('data', {})
+            st.metric("Data Points", len(st.session_state.history))
+            st.metric("Heart Rate", f"{current_data.get('hr', 0)} BPM")
+            st.metric("SpO2", f"{current_data.get('spo2', 0)}%")
         else:
-            st.warning("Not connected to serial")
+            st.warning("No data available")
     
-    # Main content area
-    if use_simulated:
-        # Generate simulated data
-        import random
-        simulated_data = {
-            'hr': 70 + random.randint(-10, 20),
-            'spo2': 97 + random.randint(-2, 2),
-            'temp': 36.5 + random.uniform(-0.5, 0.5),
-            'activity': random.uniform(0, 3),
-            'movement': random.uniform(-0.5, 0.5),
-            'node_id': 'NODE_e661',
-            'timestamp': datetime.now()
-        }
-        parsed_data = parse_health_data(
-            f"HR:{simulated_data['hr']}|SpO2:{simulated_data['spo2']}|TEMP:{simulated_data['temp']}|"
-            f"ACT:{simulated_data['activity']}|MOV:{simulated_data['movement']}|NODE:{simulated_data['node_id']}"
-        )
-        if parsed_data:
-            st.session_state.current_data = parsed_data
-            st.session_state.history.append(parsed_data)
+    # Load health data
+    health_data = load_health_data()
     
-    elif st.session_state.serial_reader and st.session_state.serial_reader.running:
-        # Read real data from serial
-        raw_data = st.session_state.serial_reader.get_data()
-        if raw_data:
-            parsed_data = parse_health_data(raw_data)
-            if parsed_data:
-                st.session_state.current_data = parsed_data
-                st.session_state.history.append(parsed_data)
+    if health_data:
+        current_data = health_data.get('data', {})
+        
+        # Convert timestamp string to datetime
+        if 'timestamp' in current_data:
+            try:
+                timestamp_str = current_data['timestamp']
+                if timestamp_str.endswith('Z'):
+                    timestamp_str = timestamp_str[:-1] + '+00:00'
+                current_data['timestamp'] = datetime.fromisoformat(timestamp_str)
+            except:
+                current_data['timestamp'] = datetime.now()
+        else:
+            current_data['timestamp'] = datetime.now()
+        
+        # Add to history
+        st.session_state.history.append(current_data)
+        
+        # Display header with data source info
+        display_header(health_data)
+        
+        # Convert history to DataFrame for charts
+        history_df = pd.DataFrame(list(st.session_state.history))
+        
+        # Convert timestamp strings to datetime
+        if 'timestamp' in history_df.columns:
+            history_df['timestamp'] = pd.to_datetime(history_df['timestamp'])
+        
+        # Display metrics
+        display_metrics(current_data, history_df, health_data.get('is_real_data', False))
+        
+        # Display charts
+        display_charts(history_df)
+        
+        # Display node info and alerts
+        display_node_info(health_data, current_data, history_df)
+        
+        # Show info about cloud environment
+        st.info("""
+        **ℹ️ Streamlit Cloud Information**
+        
+        This dashboard is running on Streamlit Cloud. For real-time COM8 data from your STEMCUBE:
+        1. Run **Uploader.py** on your local computer
+        2. Run the **local version** of this dashboard
+        3. The cloud version shows simulation data for demonstration
+        """)
     
-    # Convert history to DataFrame for charts
-    history_df = pd.DataFrame(list(st.session_state.history))
-    
-    # Display metrics
-    display_metrics(st.session_state.current_data, history_df)
-    
-    # Display charts
-    display_charts(history_df)
-    
-    # Display node info and alerts
-    display_node_info(st.session_state.current_data, history_df)
+    else:
+        st.error("❌ Failed to load health data")
     
     # Auto-refresh
-    time.sleep(update_interval / 1000.0)
+    time.sleep(update_interval)
     st.rerun()
 
 if __name__ == "__main__":
