@@ -1,114 +1,131 @@
 import streamlit as st
 import pandas as pd
 from google.cloud import bigquery
-from google.oauth2 import service_account
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
-import pytz
+from datetime import datetime
 
-# --- Configuration ---
+# --- 1. CONFIGURATION ---
 PROJECT_ID = "monitoring-system-with-lora"
 DATASET_ID = "sdp2_live_monitoring_system"
 TABLE_ID = "lora_health_data_clean2"
+KEY_FILE = "key.json"
 
-# --- Page Setup ---
+# --- 2. PAGE SETUP ---
 st.set_page_config(
-    page_title="Live Health Monitoring System",
+    page_title="Health & Movement Tracker",
+    page_icon="🏃",
     layout="wide"
 )
 
-# --- BigQuery Connection ---
+# --- 3. BIGQUERY CONNECTION ---
 @st.cache_resource
 def get_bq_client():
     try:
-        # Pastikan fail key.json ada dalam folder yang sama
-        return bigquery.Client.from_service_account_json("key.json")
+        return bigquery.Client.from_service_account_json(KEY_FILE)
     except Exception as e:
-        st.error(f"Gagal menyambung ke BigQuery: {e}")
+        st.error(f"❌ Connection Error: {e}")
         return None
 
 client = get_bq_client()
 
-# --- Sidebar Filters ---
-st.sidebar.header("📊 Dashboard Filters")
-hours_filter = st.sidebar.slider("Pilih Julat Masa (Jam):", 1, 24, 6)
-
-# --- Data Fetching ---
+# --- 4. DATA FETCHING ---
 def load_data():
     if client is None: return pd.DataFrame()
-    
+    # Ambil 100 data terbaru dari database
     query = f"""
-        SELECT * FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
-        WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours_filter} HOUR)
-        ORDER BY timestamp DESC
+        SELECT * FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` 
+        ORDER BY timestamp DESC LIMIT 100
     """
-    return client.query(query).to_dataframe()
+    try:
+        return client.query(query).to_dataframe()
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return pd.DataFrame()
 
 df = load_data()
 
-# --- Main Dashboard ---
-st.title("🏥 Sistem Pemantauan Kesihatan LoRa (Live)")
+# --- 5. MAIN DASHBOARD ---
+st.title("🏥 Real-Time Health & Movement Dashboard")
 
 if not df.empty:
-    # 1. Metrics Row
     latest = df.iloc[0]
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Suhu", f"{latest['temp']}°C")
-    col2.metric("SpO2", f"{latest['spo2']}%")
-    col3.metric("Kadar Jantung", f"{latest['hr']} BPM")
-    col4.metric("Kelembapan", f"{latest['humidity']}%")
-
-    # 2. Vital Signs Chart (PUNCA ERROR SEBELUM INI)
-    st.subheader("📈 Trend Tanda Vital")
     
-    fig = go.Figure()
+    # --- SECTION 1: ACTIVITY RECOGNITION (DARI MASTER) ---
+    st.subheader("🏃 Current Activity Status")
+    
+    # Ambil data activity dari Master (Pastikan column name 'activity' sama dengan di BigQuery)
+    current_activity = str(latest.get('activity', 'UNKNOWN')).upper()
+    
+    # Warna mengikut status
+    bg_color = "#2ecc71" if current_activity == "RESTING" else "#f1c40f"
+    if "FALL" in current_activity: bg_color = "#e74c3c"
 
-    # Heart Rate Trace
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'], y=df['hr'],
-        name="Heart Rate", line=dict(color='#c0392b')
-    ))
+    st.markdown(f"""
+        <div style="background-color:{bg_color}; padding:25px; border-radius:15px; text-align:center; border: 2px solid rgba(0,0,0,0.1)">
+            <h1 style="color:white; margin:0; font-size: 50px;">{current_activity}</h1>
+            <p style="color:white; font-size: 18px;">Last Updated: {latest['timestamp'].strftime('%H:%M:%S')}</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # SpO2 Trace
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'], y=df['spo2'],
-        name="SpO2", yaxis="y2", line=dict(color='#27ae60')
-    ))
+    # --- SECTION 2: MOVEMENT TRACKING (ACCELEROMETER) ---
+    st.write("---")
+    col_graph, col_stats = st.columns([3, 1])
 
-    # --- PEMBETULAN STRUKTUR LAYOUT (HILANGKAN ERROR titlefont) ---
-    fig.update_layout(
-        xaxis=dict(title=dict(text="Masa", font=dict(size=14))),
-        yaxis=dict(
-            title=dict(
-                text="Heart Rate (BPM)",
-                font=dict(color="#c0392b", size=14) # Cara betul akses font
-            ),
-            tickfont=dict(color="#c0392b")
-        ),
-        yaxis2=dict(
-            title=dict(
-                text="SpO2 (%)",
-                font=dict(color="#27ae60", size=14) # Cara betul akses font
-            ),
-            tickfont=dict(color="#27ae60"),
-            overlaying='y',
-            side='right'
-        ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        hovermode="x unified",
-        height=500
+    with col_graph:
+        st.subheader("📉 Movement Analysis (Accelerometer)")
+        fig_move = go.Figure()
+        fig_move.add_trace(go.Scatter(x=df['timestamp'], y=df['ax'], name="AX (X-Axis)", line=dict(color='#e74c3c')))
+        fig_move.add_trace(go.Scatter(x=df['timestamp'], y=df['ay'], name="AY (Y-Axis)", line=dict(color='#2ecc71')))
+        fig_move.add_trace(go.Scatter(x=df['timestamp'], y=df['az'], name="AZ (Z-Axis)", line=dict(color='#3498db')))
+
+        fig_move.update_layout(
+            title=dict(text="G-Force Sensor Data", font=dict(size=14)),
+            xaxis=dict(title=dict(text="Time")),
+            yaxis=dict(title=dict(text="Acceleration (g)")),
+            template="plotly_white",
+            height=400,
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_move, use_container_width=True)
+
+    with col_stats:
+        st.subheader("📍 Raw Motion")
+        st.write(f"**AX:** `{latest['ax']}`")
+        st.write(f"**AY:** `{latest['ay']}`")
+        st.write(f"**AZ:** `{latest['az']}`")
+        st.info("Data paksi digunakan oleh Master untuk mengenalpasti jatuh atau berjalan.")
+
+    # --- SECTION 3: DATABASE LIST LOG ---
+    st.write("---")
+    st.subheader("📋 Full Database Log (Historical Records)")
+    
+    # Filter paparan log
+    log_display = df[['timestamp', 'ID_user', 'activity', 'temp', 'hr', 'spo2', 'ax', 'ay', 'az', 'ir']]
+    
+    st.dataframe(
+        log_display, 
+        use_container_width=True,
+        column_config={
+            "timestamp": st.column_config.DatetimeColumn("Timestamp", format="D MMM, h:mm:ss a"),
+            "activity": st.column_config.TextColumn("Activity Status"),
+            "temp": "Temp (°C)",
+            "hr": "HR (BPM)",
+            "spo2": "SpO2 (%)"
+        }
     )
 
-    st.plotly_chart(fig, use_container_width=True)
-
-    # 3. Data Table
-    st.subheader("📋 Rekod Data Terkini")
-    st.dataframe(df.head(20), use_container_width=True)
+    # Butang Download
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Database Log (CSV)",
+        data=csv,
+        file_name=f"health_log_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv",
+    )
 
 else:
-    st.warning("⚠️ Tiada data ditemui untuk julat masa ini. Pastikan gateway laptop sedang berjalan.")
+    st.warning("⚠️ Menunggu data dari BigQuery... Sila pastikan Master Transmit dan Laptop Gateway sedang berjalan.")
 
-# --- Auto Refresh ---
-st.empty()
-if st.sidebar.button('🔄 Refresh Manual'):
+# Auto-refresh Button
+if st.sidebar.button('🔄 Refresh Dashboard'):
     st.rerun()
