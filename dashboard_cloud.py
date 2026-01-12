@@ -1,66 +1,49 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import time
 from datetime import datetime
 from google.cloud import bigquery
+from google.oauth2 import service_account
 import os
 
 # ============================================================================
-# 1. SETUP & KONFIGURASI
+# 1. SETUP & KONFIGURASI (KEMASKINI TERBARU)
 # ============================================================================
 
-# Tetapan Halaman (Mesti diletakkan paling atas)
 st.set_page_config(
     page_title="STEMCUBE Health Dashboard",
     page_icon="🏥",
     layout="wide"
 )
 
-# Konfigurasi BigQuery (Pastikan ini sama dengan Apps Script anda)
+# 👇 INI BAHAGIAN PENTING YANG TELAH DIKEMASKINI 👇
 PROJECT_ID = "monitoring-system-with-lora"
 DATASET_ID = "realtime_health_monitoring_system_with_lora"
-TABLE_ID = "lora_sensor_logs"
+TABLE_ID = "lora_sensor_logs" 
 
-# CSS untuk cantikkan Dashboard
-st.markdown("""
-<style>
-    .metric-card {
-        background-color: #1E1E1E;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #333;
-        text-align: center;
-    }
-    .metric-value {
-        font-size: 2em;
-        font-weight: bold;
-        color: #00FF00;
-    }
-    .metric-label {
-        color: #888;
-        font-size: 0.9em;
-    }
-    h1, h2, h3 { color: #FAFAFA; }
-</style>
-""", unsafe_allow_html=True)
+# Nota: Pastikan ejaan 'sensors' (ada 's') atau 'sensor' (tiada 's')
+# sama sebiji dengan nama dalam BigQuery Console anda.
 
 # ============================================================================
-# 2. FUNGSI MENARIK DATA DARI CLOUD
+# 2. FUNGSI SAMBUNGAN BIGQUERY
 # ============================================================================
 
 def get_data_from_bigquery():
-    """Menarik data terkini dari BigQuery"""
+    """Menarik data dari BigQuery menggunakan key.json"""
     try:
-        # Jika run di Local (Laptop), pastikan fail key.json wujud
-        # Jika run di Streamlit Cloud, ia guna 'secrets'
+        # 1. Cuba cari fail key.json (utk Local Run)
+        credentials = None
         if os.path.exists('key.json'):
-            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'key.json'
+            credentials = service_account.Credentials.from_service_account_file('key.json')
+        elif os.path.exists('service-account-key.json'):
+            credentials = service_account.Credentials.from_service_account_file('service-account-key.json')
             
-        client = bigquery.Client(project=PROJECT_ID)
+        # 2. Bina Client
+        # Jika tiada key.json, ia akan cuba guna st.secrets (utk Cloud Run)
+        client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
         
-        # Query: Ambil 100 data terkini
+        # 3. SQL Query
         query = f"""
             SELECT *
             FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
@@ -68,103 +51,93 @@ def get_data_from_bigquery():
             LIMIT 100
         """
         
+        # 4. Tarik Data
         df = client.query(query).to_dataframe()
         return df
         
     except Exception as e:
-        st.error(f"❌ Ralat BigQuery: {e}")
+        # Jangan crash, cuma print error di terminal
+        print(f"❌ Error BigQuery: {e}")
         return pd.DataFrame()
 
 # ============================================================================
-# 3. FUNGSI PEMBANTU (UTILITIES)
-# ============================================================================
-
-def check_bigquery_data():
-    """Fungsi untuk semak status sambungan (Fix IndentationError)"""
-    try:
-        print("🔍 Checking BigQuery connection...")
-        df = get_data_from_bigquery()
-        if not df.empty:
-            print(f"✅ Connection OK! Found {len(df)} rows.")
-            print(df.head())
-        else:
-            print("⚠️ Connection OK but table is empty.")
-    except Exception as e:
-        print(f"❌ Connection Failed: {e}")
-
-# ============================================================================
-# 4. PAPARAN UTAMA DASHBOARD
+# 3. PAPARAN UTAMA DASHBOARD
 # ============================================================================
 
 def main():
-    # Tajuk Dashboard
-    st.title("🏥 Real-Time Health Monitoring System")
-    st.caption(f"Connected to: {PROJECT_ID} | Table: {TABLE_ID}")
+    # Header
+    st.title("🏥 Real-Time Health Monitoring")
+    st.caption(f"Status: Connected to `{DATASET_ID}.{TABLE_ID}`")
+    st.markdown("---")
 
-    # Container untuk Auto-Refresh
+    # Ruang kosong untuk auto-refresh
     placeholder = st.empty()
 
-    # Loop untuk sentiasa kemaskini data
     while True:
         with placeholder.container():
-            # 1. Tarik Data
+            # A. Tarik Data Baru
             df = get_data_from_bigquery()
 
             if not df.empty:
-                # Ambil data paling baru (baris pertama)
+                # Ambil data paling terkini (baris pertama)
                 latest = df.iloc[0]
                 
-                # --- BARIS 1: METRIK UTAMA ---
+                # B. Papar Metrik (Kotak-kotak Data)
                 col1, col2, col3, col4 = st.columns(4)
                 
-                with col1:
-                    st.metric("Status Activity", latest.get('activity', 'N/A'))
-                with col2:
-                    st.metric("Heart Rate (BPM)", f"{latest.get('hr', 0):.0f}")
-                with col3:
-                    st.metric("SpO2 (%)", f"{latest.get('spo2', 0):.1f}%")
-                with col4:
-                    st.metric("Temperature (°C)", f"{latest.get('temp', 0):.1f}°C")
+                # Guna .get() supaya tak error kalau kolum hilang
+                col1.metric("User ID", str(latest.get('ID_user', 'N/A')))
+                col2.metric("Activity", str(latest.get('activity', '-')))
+                
+                # Format nombor perpuluhan
+                hr = latest.get('hr', 0)
+                temp = latest.get('temp', 0)
+                spo2 = latest.get('spo2', 0)
+                
+                col3.metric("Heart Rate", f"{hr} BPM")
+                col4.metric("Temperature", f"{temp} °C")
 
-                # --- BARIS 2: CARTA GRAF ---
+                # C. Papar Graf
                 col_left, col_right = st.columns(2)
                 
                 with col_left:
-                    st.subheader("Graf Jantung & SpO2")
-                    fig_hr = px.line(df, x='timestamp', y=['hr', 'spo2'], 
-                                   title='Health Trends Over Time',
-                                   markers=True)
-                    st.plotly_chart(fig_hr, use_container_width=True)
+                    st.subheader("📈 Jantung & Suhu")
+                    if 'timestamp' in df.columns:
+                        # Graf Garisan
+                        fig = px.line(df, x='timestamp', y=['hr', 'temp'], markers=True)
+                        st.plotly_chart(fig, use_container_width=True)
                 
                 with col_right:
-                    st.subheader("Graf Pergerakan (Accelerometer)")
-                    # Pastikan kolum ax, ay, az wujud
-                    if 'ax' in df.columns:
-                        fig_acc = px.line(df, x='timestamp', y=['ax', 'ay', 'az'], 
-                                        title='Motion Sensor Data')
-                        st.plotly_chart(fig_acc, use_container_width=True)
-                    else:
-                        st.info("Tiada data accelerometer.")
+                    st.subheader("📊 Analisis Aktiviti")
+                    if 'activity' in df.columns:
+                        # Carta Pie
+                        act_counts = df['activity'].value_counts().reset_index()
+                        act_counts.columns = ['activity', 'count']
+                        fig_pie = px.pie(act_counts, values='count', names='activity')
+                        st.plotly_chart(fig_pie, use_container_width=True)
 
-                # --- BARIS 3: JADUAL DATA MENTAH ---
-                with st.expander("Lihat Data Mentah (Raw Data)"):
+                # D. Papar Jadual Penuh
+                with st.expander("Lihat Data Penuh (Table View)"):
                     st.dataframe(df)
                     
-                # Papar masa kemaskini
-                st.write(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
+                st.success(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
 
             else:
-                st.warning("Menunggu data masuk ke BigQuery... (Sila on-kan sensor)")
+                # Paparan jika data KOSONG atau ERROR
+                st.warning(f"⚠️ Data tidak dijumpai dalam `{TABLE_ID}`.")
+                st.error(f"""
+                Kemungkinan punca:
+                1. Ejaan Table ID salah? (Anda tulis: {TABLE_ID})
+                2. Dataset ID salah? (Anda tulis: {DATASET_ID})
+                3. Belum jalankan `cloud_upload_simple.py`?
+                """)
+                
+                # Butang Retry Manual
+                if st.button("Cuba Refresh Sekarang"):
+                    st.rerun()
         
-        # Tunggu 3 saat sebelum refresh semula
+        # Tunggu 3 saat sebelum ulang
         time.sleep(3)
 
-# ============================================================================
-# 5. ENTRY POINT
-# ============================================================================
-
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Dashboard stopped by user.")
+    main()
