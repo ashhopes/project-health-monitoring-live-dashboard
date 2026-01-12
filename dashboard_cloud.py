@@ -12,7 +12,7 @@ import os
 # ============================================================================
 
 st.set_page_config(
-    page_title="STEMCUBE Health Dashboard",
+    page_title="Realtime health monitoring system with Lora",
     page_icon="🏥",
     layout="wide"
 )
@@ -20,7 +20,7 @@ st.set_page_config(
 # 👇 SETTING BIGQUERY (Pastikan sama dengan Uploader!)
 PROJECT_ID = "monitoring-system-with-lora"
 DATASET_ID = "realtime_health_monitoring_system_with_lora"
-TABLE_ID = "lora_sensors_logs"  # <-- Table Baru Anda
+TABLE_ID = "lora_sensor_logs"  # <-- Table Baru Anda
 
 # ============================================================================
 # 2. FUNGSI SAMBUNGAN BIGQUERY
