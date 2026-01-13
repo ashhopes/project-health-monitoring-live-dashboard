@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.express as px
 import requests
 from datetime import datetime
-import time
 
 API_URL = "https://rhealthmonitoringsystem.infinityfreeapp.com/api.php"
 
@@ -27,8 +26,9 @@ def main():
     st.caption(f"Connected to: `{API_URL}`")
     st.markdown("---")
 
-    # Refresh setiap 5 saat
-    st.experimental_set_query_params(refresh=str(time.time()))
+    # Butang manual refresh
+    if st.button("🔄 Refresh Data"):
+        st.experimental_rerun()
 
     df = get_data_from_api()
 
