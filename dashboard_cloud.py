@@ -25,34 +25,45 @@ TABLE_ID = "lora_sensor_logs"
 # ============================================================================
 @st.cache_resource
 def get_bigquery_client():
-    """Initialize BigQuery client with service account from Streamlit secrets"""
+    """Initialize BigQuery client with service account from Streamlit secrets or local file"""
+    import os
+    
     try:
-        # Try Streamlit secrets first (for cloud deployment)
-        if "gcp_service_account" in st.secrets:
+        # Method 1: Try local key file first (for local development)
+        possible_paths = ['key.json', 'service-account-key.json', '../key.json']
+        key_path = None
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                key_path = path
+                st.sidebar.success(f"🔑 Using: {os.path.basename(path)}")
+                break
+        
+        if key_path:
+            # Use local key file
+            credentials = service_account.Credentials.from_service_account_file(
+                key_path,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+        elif "gcp_service_account" in st.secrets:
+            # Method 2: Use Streamlit secrets (for cloud deployment)
+            st.sidebar.success("🔑 Using: Streamlit secrets")
             credentials = service_account.Credentials.from_service_account_info(
                 st.secrets["gcp_service_account"],
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
         else:
-            # Local development - look for key file
-            import os
-            possible_paths = ['key.json', 'service-account-key.json']
-            key_path = None
+            # No credentials found
+            st.error("❌ No credentials found!")
+            st.info("""
+            **For Local Development:**
+            - Place `key.json` in the same folder as this script
             
-            for path in possible_paths:
-                if os.path.exists(path):
-                    key_path = path
-                    break
-            
-            if not key_path:
-                st.error("❌ No credentials found!")
-                st.info("Add your key.json file or configure Streamlit secrets")
-                return None
-            
-            credentials = service_account.Credentials.from_service_account_file(
-                key_path,
-                scopes=["https://www.googleapis.com/auth/cloud-platform"]
-            )
+            **For Streamlit Cloud:**
+            - Go to Settings → Secrets
+            - Add your service account credentials
+            """)
+            return None
         
         client = bigquery.Client(
             credentials=credentials,
@@ -62,6 +73,7 @@ def get_bigquery_client():
         return client
     except Exception as e:
         st.error(f"❌ BigQuery connection failed: {e}")
+        st.code(str(e))
         return None
 
 # ============================================================================
