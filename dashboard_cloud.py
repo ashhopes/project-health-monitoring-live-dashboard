@@ -16,52 +16,45 @@ st.set_page_config(
     layout="wide"
 )
 
+# FIXED: Match Uploader.py configuration
 PROJECT_ID = "monitoring-system-with-lora"
-DATASET_ID = "realtime_health_monitoring_system_with_lora"
-TABLE_ID = "lora_sensor_logs"
+DATASET_ID = "sdp2_live_monitoring_system"  # Changed from realtime_health_monitoring_system_with_lora
+TABLE_ID = "lora_health_data_clean2"  # Changed from lora_sensor_logs
 
 # ============================================================================
 # 2. BIGQUERY CONNECTION
 # ============================================================================
 @st.cache_resource
 def get_bigquery_client():
-    """Initialize BigQuery client with service account from Streamlit secrets or local file"""
-    import os
-    
+    """Initialize BigQuery client with service account from Streamlit secrets"""
     try:
-        # Method 1: Try local key file first (for local development)
-        possible_paths = ['key.json', 'service-account-key.json', '../key.json']
-        key_path = None
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                key_path = path
-                st.sidebar.success(f"🔑 Using: {os.path.basename(path)}")
-                break
-        
-        if key_path:
-            # Use local key file
-            credentials = service_account.Credentials.from_service_account_file(
-                key_path,
-                scopes=["https://www.googleapis.com/auth/cloud-platform"]
-            )
-        elif "gcp_service_account" in st.secrets:
-            # Method 2: Use Streamlit secrets (for cloud deployment)
+        if "gcp_service_account" in st.secrets:
             st.sidebar.success("🔑 Using: Streamlit secrets")
             credentials = service_account.Credentials.from_service_account_info(
                 st.secrets["gcp_service_account"],
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
         else:
-            # No credentials found
-            st.error("❌ No credentials found!")
+            st.error("❌ No credentials found in Streamlit secrets!")
             st.info("""
-            **For Local Development:**
-            - Place `key.json` in the same folder as this script
+            **Setup Instructions:**
+            1. Go to Streamlit Cloud → Your App → Settings → Secrets
+            2. Add your service account key content as TOML:
             
-            **For Streamlit Cloud:**
-            - Go to Settings → Secrets
-            - Add your service account credentials
+            ```toml
+            [gcp_service_account]
+            type = "service_account"
+            project_id = "monitoring-system-with-lora"
+            private_key_id = "your-key-id"
+            private_key = "-----BEGIN PRIVATE KEY-----\\nYour-Key-Here\\n-----END PRIVATE KEY-----\\n"
+            client_email = "your-email@project.iam.gserviceaccount.com"
+            client_id = "your-client-id"
+            auth_uri = "https://accounts.google.com/o/oauth2/auth"
+            token_uri = "https://oauth2.googleapis.com/token"
+            auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+            client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/your-email%40project.iam.gserviceaccount.com"
+            universe_domain = "googleapis.com"
+            ```
             """)
             return None
         
@@ -70,6 +63,12 @@ def get_bigquery_client():
             project=PROJECT_ID,
             location="asia-southeast1"
         )
+        
+        # Test connection
+        test_query = f"SELECT COUNT(*) as count FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` LIMIT 1"
+        client.query(test_query).result()
+        st.sidebar.success(f"✅ Connected to {DATASET_ID}.{TABLE_ID}")
+        
         return client
     except Exception as e:
         st.error(f"❌ BigQuery connection failed: {e}")
@@ -106,6 +105,7 @@ def fetch_latest_data(client, hours=1, limit=100):
         return df
     except Exception as e:
         st.error(f"❌ Query failed: {e}")
+        st.code(query)
         return pd.DataFrame()
 
 def get_user_list(client):
@@ -203,22 +203,6 @@ def main():
     
     if not client:
         st.error("❌ Cannot connect to BigQuery. Check your secrets configuration!")
-        st.info("""
-        **Setup Instructions:**
-        1. Go to Streamlit Cloud → Your App → Settings → Secrets
-        2. Add your service-account-key.json content as:
-        ```toml
-        [gcp_service_account]
-        type = "service_account"
-        project_id = "your-project-id"
-        private_key_id = "..."
-        private_key = "..."
-        client_email = "..."
-        client_id = "..."
-        auth_uri = "https://accounts.google.com/o/oauth2/auth"
-        token_uri = "https://oauth2.googleapis.com/token"
-        ```
-        """)
         return
     
     # ============================================================================
@@ -228,17 +212,12 @@ def main():
         st.header("⚙️ Settings")
         
         # Time range selector
-        time_options = {
-            "Last 15 minutes": 0.25,
-            "Last 30 minutes": 0.5,
-            "Last 1 hour": 1,
-            "Last 3 hours": 3,
-            "Last 6 hours": 6,
-            "Last 12 hours": 12,
-            "Last 24 hours": 24
-        }
-        time_range = st.selectbox("⏱️ Time Range", list(time_options.keys()), index=2)
-        hours = time_options[time_range]
+        hours = st.selectbox(
+            "📅 Time Range",
+            options=[1, 6, 12, 24, 48],
+            index=0,
+            format_func=lambda x: f"Last {x} hour{'s' if x > 1 else ''}"
+        )
         
         # Auto-refresh
         st.divider()
@@ -268,7 +247,20 @@ def main():
     
     if df.empty:
         st.warning("⚠️ No data found. Make sure your LoRa receiver is running!")
-        st.info("Run: `python lora_receive_simple.py` and `python Uploader.py`")
+        st.info("""
+        **Troubleshooting:**
+        1. Verify Uploader.py is running
+        2. Check if data is being sent to BigQuery
+        3. Confirm table name: `sdp2_live_monitoring_system.lora_health_data_clean2`
+        """)
+        
+        # Show last successful query time
+        st.code(f"""
+        SELECT * FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+        WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
+        ORDER BY timestamp DESC
+        LIMIT 10
+        """)
         return
     
     # Filter by user if selected
