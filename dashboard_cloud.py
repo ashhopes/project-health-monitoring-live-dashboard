@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-API_URL = "https://healthmonitoringsystem.infinityfreeapp.com/api.php"
+API_URL = "https://rhealthmonitoringsystem.infinityfreeapp.com/api.php"
 
 # ============================================================================
 # 2. FUNGSI AMBIL DATA DARI API
