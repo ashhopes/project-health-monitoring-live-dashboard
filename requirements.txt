@@ -4,3 +4,15 @@ numpy
 plotly
 requests
 streamlit-autorefresh
+pyserial
+google-cloud-bigquery
+google-auth
+python-dotenv
+Flask
+PyGithub
+schedule
+pytz
+gspread
+google-auth-oauthlib
+google-auth-httplib2
+oauth2client
