@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-import time
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
 # ============================================================================
 # 1. SETUP & KONFIGURASI
@@ -21,7 +21,7 @@ API_URL = "https://rhealthmonitoringsystem.infinityfreeapp.com/api.php"
 # ============================================================================
 def get_data_from_api():
     try:
-        response = requests.get(API_URL)
+        response = requests.get(API_URL, timeout=10)
         if response.status_code == 200:
             df = pd.DataFrame(response.json())
             if 'timestamp' in df.columns:
@@ -39,51 +39,47 @@ def get_data_from_api():
 # ============================================================================
 def main():
     st.title("🏥 Real-Time Health Monitoring")
-    st.caption(f"Status: Connected to API `{API_URL}`")
+    st.caption(f"Connected to: `{API_URL}`")
     st.markdown("---")
 
-    placeholder = st.empty()
+    # Auto refresh setiap 5 saat
+    st_autorefresh(interval=5000, limit=None, key="api_refresh")
 
-    while True:
-        with placeholder.container():
-            df = get_data_from_api()
+    df = get_data_from_api()
 
-            if not df.empty:
-                latest = df.iloc[0]
+    if not df.empty:
+        latest = df.iloc[0]
 
-                # --- A. KAD METRIK ---
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("User ID", str(latest.get('user_id', 'N/A')))
-                col2.metric("Activity", str(latest.get('activity', '-')))
-                col3.metric("Heart Rate", f"{latest.get('hr', 0)} BPM")
-                col4.metric("Temperature", f"{latest.get('temp', 0)} °C")
+        # --- A. KAD METRIK ---
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("User ID", str(latest.get('user_id', 'N/A')))
+        col2.metric("Activity", str(latest.get('activity', '-')))
+        col3.metric("Heart Rate", f"{latest.get('hr', 0)} BPM")
+        col4.metric("Temperature", f"{latest.get('temp', 0)} °C")
 
-                # --- B. GRAF ---
-                col_left, col_right = st.columns(2)
+        # --- B. GRAF ---
+        col_left, col_right = st.columns(2)
 
-                with col_left:
-                    st.subheader("📈 Jantung & Suhu")
-                    fig = px.line(df, x='timestamp', y=['hr', 'temp'], markers=True)
-                    st.plotly_chart(fig, use_container_width=True)
+        with col_left:
+            st.subheader("📈 Jantung & Suhu")
+            fig = px.line(df, x='timestamp', y=['hr', 'temp'], markers=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-                with col_right:
-                    st.subheader("📊 Analisis Aktiviti")
-                    act_counts = df['activity'].value_counts().reset_index()
-                    act_counts.columns = ['activity', 'count']
-                    fig_pie = px.pie(act_counts, values='count', names='activity')
-                    st.plotly_chart(fig_pie, use_container_width=True)
+        with col_right:
+            st.subheader("📊 Analisis Aktiviti")
+            act_counts = df['activity'].value_counts().reset_index()
+            act_counts.columns = ['activity', 'count']
+            fig_pie = px.pie(act_counts, values='count', names='activity')
+            st.plotly_chart(fig_pie, use_container_width=True)
 
-                # --- C. DATA VIEW ---
-                with st.expander("Lihat Data Penuh"):
-                    st.dataframe(df)
+        # --- C. DATA VIEW ---
+        with st.expander("Lihat Data Penuh"):
+            st.dataframe(df)
 
-                st.success(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
-
-            else:
-                st.warning("⚠️ Tiada data dijumpai dari API.")
-                st.info("Pastikan `api.php` berfungsi dan ada data dalam table `sensor_logs`.")
-
-        time.sleep(5)
+        st.success(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
+    else:
+        st.warning("⚠️ Tiada data dijumpai dari API.")
+        st.info("Pastikan `api.php` berfungsi dan ada data dalam table `sensor_logs`.")
 
 if __name__ == "__main__":
     main()
