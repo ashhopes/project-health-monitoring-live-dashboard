@@ -3,22 +3,10 @@ import pandas as pd
 import plotly.express as px
 import requests
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
-
-# ============================================================================
-# 1. SETUP & KONFIGURASI
-# ============================================================================
-st.set_page_config(
-    page_title="Realtime health monitoring system with LoRa",
-    page_icon="🏥",
-    layout="wide"
-)
+import time
 
 API_URL = "https://rhealthmonitoringsystem.infinityfreeapp.com/api.php"
 
-# ============================================================================
-# 2. FUNGSI AMBIL DATA DARI API
-# ============================================================================
 def get_data_from_api():
     try:
         response = requests.get(API_URL, timeout=10)
@@ -34,30 +22,25 @@ def get_data_from_api():
         st.error(f"❌ Error API: {e}")
         return pd.DataFrame()
 
-# ============================================================================
-# 3. PAPARAN UTAMA
-# ============================================================================
 def main():
     st.title("🏥 Real-Time Health Monitoring")
     st.caption(f"Connected to: `{API_URL}`")
     st.markdown("---")
 
-    # Auto refresh setiap 5 saat
-    st_autorefresh(interval=5000, limit=None, key="api_refresh")
+    # Refresh setiap 5 saat
+    st.experimental_set_query_params(refresh=str(time.time()))
 
     df = get_data_from_api()
 
     if not df.empty:
         latest = df.iloc[0]
 
-        # --- A. KAD METRIK ---
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("User ID", str(latest.get('user_id', 'N/A')))
         col2.metric("Activity", str(latest.get('activity', '-')))
         col3.metric("Heart Rate", f"{latest.get('hr', 0)} BPM")
         col4.metric("Temperature", f"{latest.get('temp', 0)} °C")
 
-        # --- B. GRAF ---
         col_left, col_right = st.columns(2)
 
         with col_left:
@@ -72,7 +55,6 @@ def main():
             fig_pie = px.pie(act_counts, values='count', names='activity')
             st.plotly_chart(fig_pie, use_container_width=True)
 
-        # --- C. DATA VIEW ---
         with st.expander("Lihat Data Penuh"):
             st.dataframe(df)
 
