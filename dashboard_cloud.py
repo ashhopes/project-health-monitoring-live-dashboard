@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import time
 
 # ============================================================================
-# 1. CONFIGURATION
+# 1. CONFIGURATION - MATCHING YOUR ACTUAL BIGQUERY!
 # ============================================================================
 st.set_page_config(
     page_title="Real-time Health Monitoring with LoRa",
@@ -16,10 +16,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# FIXED: Match Uploader.py configuration
+# ✅ CORRECTED TO MATCH YOUR ACTUAL BIGQUERY STRUCTURE
 PROJECT_ID = "monitoring-system-with-lora"
-DATASET_ID = "sdp2_live_monitoring_system"  # Changed from realtime_health_monitoring_system_with_lora
-TABLE_ID = "lora_health_data_clean2"  # Changed from lora_sensor_logs
+DATASET_ID = "realtime_health_monitoring_system_with_lora"  # ✅ Matches screenshot
+TABLE_ID = "lora_sensor_logs"  # ✅ Matches screenshot
 
 # ============================================================================
 # 2. BIGQUERY CONNECTION
@@ -39,22 +39,7 @@ def get_bigquery_client():
             st.info("""
             **Setup Instructions:**
             1. Go to Streamlit Cloud → Your App → Settings → Secrets
-            2. Add your service account key content as TOML:
-            
-            ```toml
-            [gcp_service_account]
-            type = "service_account"
-            project_id = "monitoring-system-with-lora"
-            private_key_id = "your-key-id"
-            private_key = "-----BEGIN PRIVATE KEY-----\\nYour-Key-Here\\n-----END PRIVATE KEY-----\\n"
-            client_email = "your-email@project.iam.gserviceaccount.com"
-            client_id = "your-client-id"
-            auth_uri = "https://accounts.google.com/o/oauth2/auth"
-            token_uri = "https://oauth2.googleapis.com/token"
-            auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
-            client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/your-email%40project.iam.gserviceaccount.com"
-            universe_domain = "googleapis.com"
-            ```
+            2. Add your service account key content as TOML format
             """)
             return None
         
@@ -82,7 +67,7 @@ def fetch_latest_data(client, hours=1, limit=100):
     """Fetch latest data from BigQuery"""
     query = f"""
     SELECT 
-        id_user,
+        ID_user,
         timestamp,
         temp,
         spo2,
@@ -90,8 +75,7 @@ def fetch_latest_data(client, hours=1, limit=100):
         ax, ay, az,
         gx, gy, gz,
         humidity,
-        activity,
-        activity_confidence
+        activity
     FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
     WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
     ORDER BY timestamp DESC
@@ -102,6 +86,15 @@ def fetch_latest_data(client, hours=1, limit=100):
         df = client.query(query).to_dataframe()
         if not df.empty and 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Rename ID_user to id_user for consistency
+            if 'ID_user' in df.columns:
+                df.rename(columns={'ID_user': 'id_user'}, inplace=True)
+            
+            # Add missing activity_confidence column (default to 1.0)
+            if 'activity_confidence' not in df.columns:
+                df['activity_confidence'] = 1.0
+        
         return df
     except Exception as e:
         st.error(f"❌ Query failed: {e}")
@@ -111,14 +104,14 @@ def fetch_latest_data(client, hours=1, limit=100):
 def get_user_list(client):
     """Get list of unique users"""
     query = f"""
-    SELECT DISTINCT id_user
+    SELECT DISTINCT ID_user
     FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
     WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
-    ORDER BY id_user
+    ORDER BY ID_user
     """
     try:
         df = client.query(query).to_dataframe()
-        return df['id_user'].tolist()
+        return df['ID_user'].tolist()
     except:
         return []
 
@@ -246,15 +239,17 @@ def main():
         df = fetch_latest_data(client, hours=hours, limit=500)
     
     if df.empty:
-        st.warning("⚠️ No data found. Make sure your LoRa receiver is running!")
+        st.warning("⚠️ No data found in the last hour.")
         st.info("""
         **Troubleshooting:**
-        1. Verify Uploader.py is running
-        2. Check if data is being sent to BigQuery
-        3. Confirm table name: `sdp2_live_monitoring_system.lora_health_data_clean2`
+        1. Check if data exists in BigQuery:
+           - Dataset: `realtime_health_monitoring_system_with_lora`
+           - Table: `lora_sensor_logs`
+        2. Verify your LoRa system is transmitting
+        3. Change time range to 24 hours in sidebar
         """)
         
-        # Show last successful query time
+        # Show query for debugging
         st.code(f"""
         SELECT * FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
         WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
@@ -316,11 +311,10 @@ def main():
     
     with col5:
         activity = latest['activity']
-        confidence = float(latest['activity_confidence']) * 100
         st.metric(
             "🏃 Activity",
             activity,
-            delta=f"{confidence:.0f}% confidence"
+            delta=None
         )
     
     st.divider()
@@ -373,7 +367,7 @@ def main():
             st.plotly_chart(fig_hum, use_container_width=True)
         
         with col2:
-            # Combined environment + HR
+            # Combined environment
             fig_env = go.Figure()
             fig_env.add_trace(go.Scatter(x=df['timestamp'], y=df['temp'],
                                         name='Temperature', yaxis='y'))
@@ -405,9 +399,8 @@ def main():
         activity_stats = df.groupby('activity').agg({
             'hr': 'mean',
             'temp': 'mean',
-            'activity_confidence': 'mean'
         }).round(2)
-        activity_stats.columns = ['Avg HR', 'Avg Temp', 'Avg Confidence']
+        activity_stats.columns = ['Avg HR', 'Avg Temp']
         st.dataframe(activity_stats, use_container_width=True)
     
     # ============================================================================
