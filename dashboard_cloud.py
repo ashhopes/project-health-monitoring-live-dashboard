@@ -6,9 +6,10 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 from datetime import datetime, timedelta
 import time
+import pytz
 
 # ============================================================================
-# 1. CONFIGURATION - MATCHING YOUR ACTUAL BIGQUERY!
+# 1. CONFIGURATION
 # ============================================================================
 st.set_page_config(
     page_title="Real-time Health Monitoring with LoRa",
@@ -18,8 +19,8 @@ st.set_page_config(
 
 # ✅ CORRECTED TO MATCH YOUR ACTUAL BIGQUERY STRUCTURE
 PROJECT_ID = "monitoring-system-with-lora"
-DATASET_ID = "realtime_health_monitoring_system_with_lora"  # ✅ Matches screenshot
-TABLE_ID = "lora_sensor_logs"  # ✅ Matches screenshot
+DATASET_ID = "realtime_health_monitoring_system_with_lora"
+TABLE_ID = "lora_sensor_logs"
 
 # ============================================================================
 # 2. BIGQUERY CONNECTION
@@ -36,11 +37,6 @@ def get_bigquery_client():
             )
         else:
             st.error("❌ No credentials found in Streamlit secrets!")
-            st.info("""
-            **Setup Instructions:**
-            1. Go to Streamlit Cloud → Your App → Settings → Secrets
-            2. Add your service account key content as TOML format
-            """)
             return None
         
         client = bigquery.Client(
@@ -57,14 +53,13 @@ def get_bigquery_client():
         return client
     except Exception as e:
         st.error(f"❌ BigQuery connection failed: {e}")
-        st.code(str(e))
         return None
 
 # ============================================================================
 # 3. DATA FETCHING FUNCTIONS
 # ============================================================================
-def fetch_latest_data(client, hours=1, limit=100):
-    """Fetch latest data from BigQuery"""
+def fetch_latest_data(client, hours=1, limit=500):
+    """Fetch latest data from BigQuery with proper timestamp handling"""
     query = f"""
     SELECT 
         ID_user,
@@ -84,8 +79,10 @@ def fetch_latest_data(client, hours=1, limit=100):
     
     try:
         df = client.query(query).to_dataframe()
+        
         if not df.empty and 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            # Convert timestamp to pandas datetime (UTC aware)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
             
             # Rename ID_user to id_user for consistency
             if 'ID_user' in df.columns:
@@ -98,7 +95,6 @@ def fetch_latest_data(client, hours=1, limit=100):
         return df
     except Exception as e:
         st.error(f"❌ Query failed: {e}")
-        st.code(query)
         return pd.DataFrame()
 
 def get_user_list(client):
@@ -230,7 +226,8 @@ def main():
             selected_user = "All Users"
         
         st.divider()
-        st.caption(f"🕐 Last updated: {datetime.now().strftime('%H:%M:%S')}")
+        current_time = datetime.now(pytz.UTC)
+        st.caption(f"🕐 Last updated: {current_time.strftime('%H:%M:%S UTC')}")
     
     # ============================================================================
     # FETCH DATA
@@ -239,22 +236,12 @@ def main():
         df = fetch_latest_data(client, hours=hours, limit=500)
     
     if df.empty:
-        st.warning("⚠️ No data found in the last hour.")
-        st.info("""
+        st.warning("⚠️ No data found in the selected time range.")
+        st.info(f"""
         **Troubleshooting:**
-        1. Check if data exists in BigQuery:
-           - Dataset: `realtime_health_monitoring_system_with_lora`
-           - Table: `lora_sensor_logs`
-        2. Verify your LoRa system is transmitting
-        3. Change time range to 24 hours in sidebar
-        """)
-        
-        # Show query for debugging
-        st.code(f"""
-        SELECT * FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
-        WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
-        ORDER BY timestamp DESC
-        LIMIT 10
+        1. Check if data exists in BigQuery
+        2. Verify your upload script is running
+        3. Try increasing time range to 24 hours
         """)
         return
     
@@ -273,49 +260,26 @@ def main():
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        st.metric(
-            "👤 User ID",
-            latest['id_user'],
-            delta=None
-        )
+        st.metric("👤 User ID", latest['id_user'])
     
     with col2:
         hr_value = int(latest['hr'])
         hr_status = "🟢" if 60 <= hr_value <= 100 else "🔴"
-        st.metric(
-            "❤️ Heart Rate",
-            f"{hr_value} BPM",
-            delta=None,
-            help=f"{hr_status} Normal: 60-100 BPM"
-        )
+        st.metric("❤️ Heart Rate", f"{hr_value} BPM", help=f"{hr_status} Normal: 60-100 BPM")
     
     with col3:
         spo2_value = int(latest['spo2'])
         spo2_status = "🟢" if spo2_value >= 95 else "🔴"
-        st.metric(
-            "💨 SpO2",
-            f"{spo2_value}%",
-            delta=None,
-            help=f"{spo2_status} Normal: ≥95%"
-        )
+        st.metric("💨 SpO2", f"{spo2_value}%", help=f"{spo2_status} Normal: ≥95%")
     
     with col4:
         temp_value = float(latest['temp'])
         temp_status = "🟢" if 36.1 <= temp_value <= 37.2 else "🔴"
-        st.metric(
-            "🌡️ Temperature",
-            f"{temp_value:.1f}°C",
-            delta=None,
-            help=f"{temp_status} Normal: 36.1-37.2°C"
-        )
+        st.metric("🌡️ Temperature", f"{temp_value:.1f}°C", help=f"{temp_status} Normal: 36.1-37.2°C")
     
     with col5:
-        activity = latest['activity']
-        st.metric(
-            "🏃 Activity",
-            activity,
-            delta=None
-        )
+        activity = str(latest['activity'])
+        st.metric("🏃 Activity", activity)
     
     st.divider()
     
@@ -346,28 +310,23 @@ def main():
         
         col1, col2 = st.columns(2)
         with col1:
-            fig_gx = px.line(df, x='timestamp', y=['gx', 'gy', 'gz'], 
-                            title='Gyroscope Data')
+            fig_gx = px.line(df, x='timestamp', y=['gx', 'gy', 'gz'], title='Gyroscope Data')
             st.plotly_chart(fig_gx, use_container_width=True)
         
         with col2:
-            # 3D scatter of recent movement
             recent_df = df.head(50)
             fig_3d = px.scatter_3d(recent_df, x='ax', y='ay', z='az',
-                                   color='activity',
-                                   title='3D Movement Pattern')
+                                   color='activity', title='3D Movement Pattern')
             st.plotly_chart(fig_3d, use_container_width=True)
     
     with tab3:
         col1, col2 = st.columns(2)
         
         with col1:
-            fig_hum = px.line(df, x='timestamp', y='humidity',
-                             title='Humidity Over Time')
+            fig_hum = px.line(df, x='timestamp', y='humidity', title='Humidity Over Time')
             st.plotly_chart(fig_hum, use_container_width=True)
         
         with col2:
-            # Combined environment
             fig_env = go.Figure()
             fig_env.add_trace(go.Scatter(x=df['timestamp'], y=df['temp'],
                                         name='Temperature', yaxis='y'))
@@ -387,14 +346,10 @@ def main():
             st.plotly_chart(create_activity_distribution(df), use_container_width=True)
         
         with col2:
-            # Activity timeline
             fig_timeline = px.scatter(df, x='timestamp', y='activity',
-                                     color='activity',
-                                     title='Activity Timeline',
-                                     height=400)
+                                     color='activity', title='Activity Timeline', height=400)
             st.plotly_chart(fig_timeline, use_container_width=True)
         
-        # Activity statistics
         st.subheader("📊 Activity Statistics")
         activity_stats = df.groupby('activity').agg({
             'hr': 'mean',
@@ -422,7 +377,7 @@ def main():
         )
     
     # ============================================================================
-    # SYSTEM STATUS
+    # SYSTEM STATUS - FIXED TIMESTAMP COMPARISON
     # ============================================================================
     st.divider()
     col1, col2, col3 = st.columns(3)
@@ -432,7 +387,16 @@ def main():
     
     with col2:
         if not df.empty:
-            time_diff = (datetime.now() - df['timestamp'].max()).total_seconds()
+            # FIXED: Proper timezone-aware comparison
+            current_time = datetime.now(pytz.UTC)
+            latest_timestamp = df['timestamp'].max()
+            
+            # Ensure both are timezone-aware
+            if latest_timestamp.tzinfo is None:
+                latest_timestamp = latest_timestamp.replace(tzinfo=pytz.UTC)
+            
+            time_diff = (current_time - latest_timestamp).total_seconds()
+            
             if time_diff < 60:
                 st.success(f"✅ Live: {time_diff:.0f}s ago")
             else:
