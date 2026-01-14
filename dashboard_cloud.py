@@ -12,7 +12,7 @@ import pytz
 # 1. PAGE CONFIGURATION
 # ============================================================================
 st.set_page_config(
-    page_title="Health Monitor | UMPSA",
+    page_title=" Real-Time Health Monitoring System with LoRa | PS25046",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -21,12 +21,11 @@ st.set_page_config(
 # ============================================================================
 # 2. UMPSA BACKGROUND IMAGE FROM URL
 # ============================================================================
-UMPSA_IMAGE_URL = "http://www.umpsa.edu.my/sites/default/files/slider/ZAF_1540-edit.jpg"
+UMPSA_IMAGE_URL = "umpsa.jpg"
 
 st.markdown(f"""
 <style>
-    /* MUJI PHILOSOPHY: 無印良品 - Natural, Simple, Essential */
-    
+
     .main {{
         background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
                           url('{UMPSA_IMAGE_URL}');
