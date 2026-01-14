@@ -719,7 +719,7 @@ def main():
     
     with col5:
         activity_val = str(latest['activity'])
-        activity_icons = {"resting": "🛌", "briskwalk": "🚶", "walking": "🚶", "running": "🏃", "jogging": "🏃"}
+        activity_icons = {"resting": "🛌", "briskwalk": "🚶", "running": "🏃"}
         activity_icon = activity_icons.get(activity_val.lower(), "🏃")
         
         st.markdown(f"""
