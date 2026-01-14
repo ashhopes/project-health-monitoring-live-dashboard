@@ -7,36 +7,220 @@ from google.oauth2 import service_account
 from datetime import datetime, timedelta
 import time
 import pytz
+import base64
+from pathlib import Path
 
 # ============================================================================
-# 1. CONFIGURATION
+# 1. PAGE CONFIGURATION - MUJI MINIMALIST STYLE
 # ============================================================================
 st.set_page_config(
-    page_title="Real-time Health Monitoring with LoRa",
+    page_title="Health Monitor | UMPSA",
     page_icon="🏥",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ✅ CORRECTED TO MATCH YOUR ACTUAL BIGQUERY STRUCTURE
+# ============================================================================
+# 2. LOAD UMPSA BACKGROUND IMAGE
+# ============================================================================
+def get_base64_image(image_path):
+    """Convert image to base64 for CSS background"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        # Try alternative paths
+        for path in ["umpsa.png", "./umpsa.png", "../umpsa.png"]:
+            try:
+                with open(path, "rb") as img_file:
+                    return base64.b64encode(img_file.read()).decode()
+            except:
+                continue
+        return None
+
+# Load UMPSA wallpaper
+umpsa_bg = get_base64_image("umpsa.png")
+
+# MUJI-style CSS with UMPSA wallpaper
+if umpsa_bg:
+    background_style = f"""
+    background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
+                      url('data:image/png;base64,{umpsa_bg}');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    """
+else:
+    background_style = """
+    background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+    """
+
+st.markdown(f"""
+<style>
+    /* ============================================
+       MUJI PHILOSOPHY: 無印良品
+       - Natural, Simple, Essential
+       - Minimal colors, maximum function
+    ============================================ */
+    
+    /* Main background with UMPSA wallpaper */
+    .main {{
+        {background_style}
+    }}
+    
+    /* Clean white cards with subtle shadows */
+    .stMetric {{
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 24px;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        border: 1px solid rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+    }}
+    
+    .stMetric:hover {{
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }}
+    
+    /* Typography - Clean and readable (MUJI style) */
+    .stMetric label {{
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        color: #666666 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }}
+    
+    .stMetric [data-testid="stMetricValue"] {{
+        font-size: 32px !important;
+        font-weight: 300 !important;
+        color: #2c2c2c !important;
+    }}
+    
+    /* Sidebar - Clean minimal */
+    [data-testid="stSidebar"] {{
+        background: rgba(250, 250, 250, 0.95);
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(0,0,0,0.08);
+    }}
+    
+    [data-testid="stSidebar"] * {{
+        color: #2c2c2c !important;
+    }}
+    
+    /* Headers - Minimal Japanese typography influence */
+    h1 {{
+        color: #2c2c2c !important;
+        font-weight: 300 !important;
+        font-size: 36px !important;
+        letter-spacing: -0.5px;
+        margin-bottom: 8px !important;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }}
+    
+    h2, h3 {{
+        color: #2c2c2c !important;
+        font-weight: 400 !important;
+    }}
+    
+    /* Tabs - Minimal design */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 0px;
+        background-color: transparent;
+        border-bottom: 1px solid rgba(0,0,0,0.1);
+    }}
+    
+    .stTabs [data-baseweb="tab"] {{
+        background-color: transparent;
+        border: none;
+        color: #999999;
+        font-weight: 400;
+        padding: 12px 24px;
+        border-bottom: 2px solid transparent;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+    }}
+    
+    .stTabs [aria-selected="true"] {{
+        background-color: transparent;
+        color: #2c2c2c !important;
+        border-bottom: 2px solid #2c2c2c;
+        font-weight: 500;
+    }}
+    
+    /* Buttons - Minimal MUJI style */
+    .stButton button {{
+        background: #2c2c2c;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 10px 24px;
+        font-weight: 400;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+    }}
+    
+    .stButton button:hover {{
+        background: #1a1a1a;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }}
+    
+    /* Info boxes - Clean and subtle */
+    .stAlert {{
+        border-radius: 4px;
+        border: 1px solid rgba(0,0,0,0.08);
+        background: rgba(250, 250, 250, 0.9);
+    }}
+    
+    /* Remove excessive padding */
+    .block-container {{
+        padding-top: 2rem;
+        padding-bottom: 1rem;
+    }}
+    
+    /* Clean dividers */
+    hr {{
+        border: none;
+        border-top: 1px solid rgba(0,0,0,0.08);
+        margin: 1.5rem 0;
+    }}
+    
+    /* Plotly charts background */
+    .js-plotly-plot {{
+        background: rgba(255, 255, 255, 0.9) !important;
+        backdrop-filter: blur(10px);
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }}
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# 3. CONFIGURATION
+# ============================================================================
 PROJECT_ID = "monitoring-system-with-lora"
 DATASET_ID = "realtime_health_monitoring_system_with_lora"
 TABLE_ID = "lora_sensor_logs"
 
 # ============================================================================
-# 2. BIGQUERY CONNECTION
+# 4. BIGQUERY CONNECTION
 # ============================================================================
 @st.cache_resource
 def get_bigquery_client():
-    """Initialize BigQuery client with service account from Streamlit secrets"""
+    """Initialize BigQuery client"""
     try:
         if "gcp_service_account" in st.secrets:
-            st.sidebar.success("🔑 Using: Streamlit secrets")
             credentials = service_account.Credentials.from_service_account_info(
                 st.secrets["gcp_service_account"],
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
         else:
-            st.error("❌ No credentials found in Streamlit secrets!")
+            st.error("No credentials found")
             return None
         
         client = bigquery.Client(
@@ -45,21 +229,16 @@ def get_bigquery_client():
             location="asia-southeast1"
         )
         
-        # Test connection
-        test_query = f"SELECT COUNT(*) as count FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` LIMIT 1"
-        client.query(test_query).result()
-        st.sidebar.success(f"✅ Connected to {DATASET_ID}.{TABLE_ID}")
-        
         return client
     except Exception as e:
-        st.error(f"❌ BigQuery connection failed: {e}")
+        st.error(f"Connection failed: {e}")
         return None
 
 # ============================================================================
-# 3. DATA FETCHING FUNCTIONS
+# 5. DATA FETCHING
 # ============================================================================
 def fetch_latest_data(client, hours=1, limit=500):
-    """Fetch latest data from BigQuery with proper timestamp handling"""
+    """Fetch data from BigQuery"""
     query = f"""
     SELECT 
         ID_user,
@@ -80,336 +259,348 @@ def fetch_latest_data(client, hours=1, limit=500):
     try:
         df = client.query(query).to_dataframe()
         
-        if not df.empty and 'timestamp' in df.columns:
-            # Convert timestamp to pandas datetime (UTC aware)
+        if not df.empty:
             df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
-            
-            # Rename ID_user to id_user for consistency
             if 'ID_user' in df.columns:
                 df.rename(columns={'ID_user': 'id_user'}, inplace=True)
-            
-            # Add missing activity_confidence column (default to 1.0)
-            if 'activity_confidence' not in df.columns:
-                df['activity_confidence'] = 1.0
         
         return df
     except Exception as e:
-        st.error(f"❌ Query failed: {e}")
+        st.error(f"Query failed: {e}")
         return pd.DataFrame()
 
-def get_user_list(client):
-    """Get list of unique users"""
-    query = f"""
-    SELECT DISTINCT ID_user
-    FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
-    WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
-    ORDER BY ID_user
-    """
-    try:
-        df = client.query(query).to_dataframe()
-        return df['ID_user'].tolist()
-    except:
-        return []
-
 # ============================================================================
-# 4. VISUALIZATION FUNCTIONS
+# 6. MINIMAL CHARTS - MUJI STYLE
 # ============================================================================
-def create_vital_signs_chart(df):
-    """Create combined chart for HR, SpO2, and Temp"""
+def create_minimal_line_chart(df, y_col, title, color='#2c2c2c'):
+    """Create minimal line chart - MUJI style"""
     fig = go.Figure()
     
-    # Heart Rate
     fig.add_trace(go.Scatter(
-        x=df['timestamp'], y=df['hr'],
-        name='Heart Rate (BPM)',
-        line=dict(color='red', width=2),
-        mode='lines+markers'
-    ))
-    
-    # SpO2
-    fig.add_trace(go.Scatter(
-        x=df['timestamp'], y=df['spo2'],
-        name='SpO2 (%)',
-        line=dict(color='blue', width=2),
-        mode='lines+markers',
-        yaxis='y2'
+        x=df['timestamp'],
+        y=df[y_col],
+        mode='lines',
+        line=dict(color=color, width=2),
+        fill='tozeroy',
+        fillcolor=f'rgba(44, 44, 44, 0.03)'
     ))
     
     fig.update_layout(
-        title='Vital Signs Over Time',
-        xaxis_title='Time',
-        yaxis=dict(title='Heart Rate (BPM)', side='left', color='red'),
-        yaxis2=dict(title='SpO2 (%)', overlaying='y', side='right', color='blue'),
-        height=400,
+        title=dict(
+            text=title, 
+            font=dict(size=14, color='#2c2c2c', family='Arial'),
+            x=0
+        ),
+        paper_bgcolor='rgba(255,255,255,0.9)',
+        plot_bgcolor='rgba(255,255,255,0.5)',
+        font=dict(color='#666666', size=11),
+        xaxis=dict(
+            gridcolor='rgba(0,0,0,0.05)',
+            showgrid=True,
+            zeroline=False
+        ),
+        yaxis=dict(
+            gridcolor='rgba(0,0,0,0.05)',
+            showgrid=True,
+            zeroline=False
+        ),
+        height=280,
+        margin=dict(l=50, r=30, t=40, b=40),
         hovermode='x unified'
     )
     
     return fig
 
-def create_movement_chart(df):
-    """Create 3D visualization of accelerometer data"""
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(x=df['timestamp'], y=df['ax'], name='Accel X', line=dict(color='red')))
-    fig.add_trace(go.Scatter(x=df['timestamp'], y=df['ay'], name='Accel Y', line=dict(color='green')))
-    fig.add_trace(go.Scatter(x=df['timestamp'], y=df['az'], name='Accel Z', line=dict(color='blue')))
-    
-    fig.update_layout(
-        title='Accelerometer Data (MPU6050)',
-        xaxis_title='Time',
-        yaxis_title='Acceleration (g)',
-        height=400,
-        hovermode='x unified'
-    )
-    
-    return fig
-
-def create_activity_distribution(df):
-    """Create pie chart for activity distribution"""
+def create_minimal_bar_chart(df):
+    """Create minimal activity distribution"""
     activity_counts = df['activity'].value_counts().reset_index()
     activity_counts.columns = ['activity', 'count']
     
-    fig = px.pie(
-        activity_counts,
-        values='count',
-        names='activity',
-        title='Activity Distribution',
-        hole=0.3
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=activity_counts['activity'],
+        y=activity_counts['count'],
+        marker=dict(
+            color='#2c2c2c',
+            line=dict(color='#2c2c2c', width=1)
+        )
+    ))
+    
+    fig.update_layout(
+        title=dict(text='Activity Distribution', font=dict(size=14, color='#2c2c2c'), x=0),
+        paper_bgcolor='rgba(255,255,255,0.9)',
+        plot_bgcolor='rgba(255,255,255,0.5)',
+        font=dict(color='#666666', size=11),
+        xaxis=dict(gridcolor='rgba(0,0,0,0.05)', showgrid=False),
+        yaxis=dict(gridcolor='rgba(0,0,0,0.05)', showgrid=True),
+        height=280,
+        margin=dict(l=50, r=30, t=40, b=40)
     )
-    fig.update_traces(textposition='inside', textinfo='percent+label')
     
     return fig
 
 # ============================================================================
-# 5. MAIN DASHBOARD
+# 7. MAIN DASHBOARD - MUJI MINIMALIST
 # ============================================================================
 def main():
-    st.title("🏥 Real-time Health Monitoring System with LoRa")
-    st.caption("📡 Data from Pico → LoRa → BigQuery → Streamlit")
+    # Header with UMPSA branding - Minimal style
+    col1, col2 = st.columns([3, 1])
     
-    # Initialize BigQuery client
+    with col1:
+        st.markdown("""
+        <div style="padding: 15px 0;">
+            <h1 style="margin: 0; font-weight: 300; color: #2c2c2c;">Health Monitoring System</h1>
+            <p style="color: #999999; font-size: 13px; margin-top: 4px; letter-spacing: 0.5px;">
+                Real-time LoRa-based Vital Signs Monitor
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div style="text-align: right; padding: 15px 0;">
+            <p style="color: #999999; font-size: 11px; margin: 0; letter-spacing: 0.5px;">DEVELOPED BY</p>
+            <h3 style="margin: 4px 0; font-weight: 500; color: #2c2c2c;">UMPSA</h3>
+            <p style="color: #cccccc; font-size: 10px; margin: 0;">Universiti Malaysia Pahang Al-Sultan Abdullah</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+    
+    # Initialize client
     client = get_bigquery_client()
-    
     if not client:
-        st.error("❌ Cannot connect to BigQuery. Check your secrets configuration!")
         return
     
     # ============================================================================
-    # SIDEBAR CONTROLS
+    # SIDEBAR - MINIMAL CONTROLS
     # ============================================================================
     with st.sidebar:
-        st.header("⚙️ Settings")
+        st.markdown("### Settings")
+        st.markdown("<br>", unsafe_allow_html=True)
         
-        # Time range selector
-        hours = st.selectbox(
-            "📅 Time Range",
-            options=[1, 6, 12, 24, 48],
-            index=0,
-            format_func=lambda x: f"Last {x} hour{'s' if x > 1 else ''}"
+        hours = st.select_slider(
+            "Time Range",
+            options=[1, 3, 6, 12, 24],
+            value=1,
+            format_func=lambda x: f"{x} hour{'s' if x > 1 else ''}"
         )
         
-        # Auto-refresh
-        st.divider()
-        auto_refresh = st.checkbox("🔄 Auto-refresh", value=True)
-        refresh_interval = st.slider("Refresh interval (seconds)", 5, 60, 10)
+        st.markdown("---")
         
-        # Manual refresh button
-        if st.button("🔄 Refresh Now", use_container_width=True):
+        auto_refresh = st.checkbox("Auto Refresh", value=True)
+        if auto_refresh:
+            refresh_rate = st.slider("Refresh Rate (seconds)", 5, 60, 10)
+        
+        st.markdown("---")
+        
+        if st.button("Refresh Now", use_container_width=True):
             st.rerun()
         
-        # User filter
-        st.divider()
-        users = get_user_list(client)
-        if users:
-            selected_user = st.selectbox("👤 Select User", ["All Users"] + users)
-        else:
-            selected_user = "All Users"
+        st.markdown("---")
         
-        st.divider()
         current_time = datetime.now(pytz.UTC)
-        st.caption(f"🕐 Last updated: {current_time.strftime('%H:%M:%S UTC')}")
+        st.caption(f"Updated: {current_time.strftime('%H:%M:%S UTC')}")
     
     # ============================================================================
     # FETCH DATA
     # ============================================================================
-    with st.spinner("📊 Loading data from BigQuery..."):
-        df = fetch_latest_data(client, hours=hours, limit=500)
+    with st.spinner("Loading..."):
+        df = fetch_latest_data(client, hours=hours)
     
     if df.empty:
-        st.warning("⚠️ No data found in the selected time range.")
-        st.info(f"""
-        **Troubleshooting:**
-        1. Check if data exists in BigQuery
-        2. Verify your upload script is running
-        3. Try increasing time range to 24 hours
-        """)
+        st.warning("No data available")
         return
     
-    # Filter by user if selected
-    if selected_user != "All Users":
-        df = df[df['id_user'] == selected_user]
-        if df.empty:
-            st.warning(f"⚠️ No data found for user: {selected_user}")
-            return
+    latest = df.iloc[0]
     
     # ============================================================================
-    # METRICS CARDS
+    # METRICS - MINIMAL CARDS (MUJI STYLE)
     # ============================================================================
-    latest = df.iloc[0]  # Most recent reading
-    
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        st.metric("👤 User ID", latest['id_user'])
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); 
+                    padding: 20px; border-radius: 8px; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #999; font-size: 11px; margin: 0; text-transform: uppercase; 
+                      letter-spacing: 1px; font-weight: 500;">USER ID</p>
+            <h2 style="color: #2c2c2c; font-size: 24px; margin: 6px 0 0 0; font-weight: 300;">
+                {latest['id_user']}
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        hr_value = int(latest['hr'])
-        hr_status = "🟢" if 60 <= hr_value <= 100 else "🔴"
-        st.metric("❤️ Heart Rate", f"{hr_value} BPM", help=f"{hr_status} Normal: 60-100 BPM")
+        hr_val = int(latest['hr'])
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); 
+                    padding: 20px; border-radius: 8px; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #999; font-size: 11px; margin: 0; text-transform: uppercase; 
+                      letter-spacing: 1px; font-weight: 500;">HEART RATE</p>
+            <h2 style="color: #2c2c2c; font-size: 28px; margin: 6px 0 0 0; font-weight: 300;">
+                {hr_val}<span style="font-size: 12px; color: #bbb;"> BPM</span>
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
-        spo2_value = int(latest['spo2'])
-        spo2_status = "🟢" if spo2_value >= 95 else "🔴"
-        st.metric("💨 SpO2", f"{spo2_value}%", help=f"{spo2_status} Normal: ≥95%")
+        spo2_val = int(latest['spo2'])
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); 
+                    padding: 20px; border-radius: 8px; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #999; font-size: 11px; margin: 0; text-transform: uppercase; 
+                      letter-spacing: 1px; font-weight: 500;">SPO2</p>
+            <h2 style="color: #2c2c2c; font-size: 28px; margin: 6px 0 0 0; font-weight: 300;">
+                {spo2_val}<span style="font-size: 12px; color: #bbb;"> %</span>
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col4:
-        temp_value = float(latest['temp'])
-        temp_status = "🟢" if 36.1 <= temp_value <= 37.2 else "🔴"
-        st.metric("🌡️ Temperature", f"{temp_value:.1f}°C", help=f"{temp_status} Normal: 36.1-37.2°C")
+        temp_val = float(latest['temp'])
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); 
+                    padding: 20px; border-radius: 8px; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #999; font-size: 11px; margin: 0; text-transform: uppercase; 
+                      letter-spacing: 1px; font-weight: 500;">TEMPERATURE</p>
+            <h2 style="color: #2c2c2c; font-size: 28px; margin: 6px 0 0 0; font-weight: 300;">
+                {temp_val:.1f}<span style="font-size: 12px; color: #bbb;"> °C</span>
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col5:
-        activity = str(latest['activity'])
-        st.metric("🏃 Activity", activity)
+        activity_val = str(latest['activity'])
+        st.markdown(f"""
+        <div style="background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); 
+                    padding: 20px; border-radius: 8px; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #999; font-size: 11px; margin: 0; text-transform: uppercase; 
+                      letter-spacing: 1px; font-weight: 500;">ACTIVITY</p>
+            <h2 style="color: #2c2c2c; font-size: 20px; margin: 6px 0 0 0; font-weight: 400;">
+                {activity_val.title()}
+            </h2>
+        </div>
+        """, unsafe_allow_html=True)
     
-    st.divider()
+    st.markdown("<br>", unsafe_allow_html=True)
     
     # ============================================================================
-    # CHARTS
+    # CHARTS - MINIMAL TABS
     # ============================================================================
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Vital Signs",
-        "🏃 Movement",
-        "🌡️ Environment",
-        "📊 Activity Analysis"
-    ])
+    tab1, tab2, tab3 = st.tabs(["VITAL SIGNS", "MOTION DATA", "STATISTICS"])
     
     with tab1:
-        st.plotly_chart(create_vital_signs_chart(df), use_container_width=True)
-        
         col1, col2 = st.columns(2)
+        
         with col1:
-            fig_hr = px.line(df, x='timestamp', y='hr', title='Heart Rate Trend')
+            fig_hr = create_minimal_line_chart(df, 'hr', 'Heart Rate (BPM)', '#2c2c2c')
             st.plotly_chart(fig_hr, use_container_width=True)
         
         with col2:
-            fig_temp = px.line(df, x='timestamp', y='temp', title='Temperature Trend')
+            fig_spo2 = create_minimal_line_chart(df, 'spo2', 'SpO2 (%)', '#2c2c2c')
+            st.plotly_chart(fig_spo2, use_container_width=True)
+        
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            fig_temp = create_minimal_line_chart(df, 'temp', 'Temperature (°C)', '#2c2c2c')
             st.plotly_chart(fig_temp, use_container_width=True)
+        
+        with col4:
+            fig_hum = create_minimal_line_chart(df, 'humidity', 'Humidity (%)', '#2c2c2c')
+            st.plotly_chart(fig_hum, use_container_width=True)
     
     with tab2:
-        st.plotly_chart(create_movement_chart(df), use_container_width=True)
-        
         col1, col2 = st.columns(2)
+        
         with col1:
-            fig_gx = px.line(df, x='timestamp', y=['gx', 'gy', 'gz'], title='Gyroscope Data')
-            st.plotly_chart(fig_gx, use_container_width=True)
+            fig_accel = create_minimal_line_chart(df, 'ax', 'Accelerometer X', '#2c2c2c')
+            st.plotly_chart(fig_accel, use_container_width=True)
         
         with col2:
-            recent_df = df.head(50)
-            fig_3d = px.scatter_3d(recent_df, x='ax', y='ay', z='az',
-                                   color='activity', title='3D Movement Pattern')
-            st.plotly_chart(fig_3d, use_container_width=True)
+            st.plotly_chart(create_minimal_bar_chart(df), use_container_width=True)
     
     with tab3:
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            fig_hum = px.line(df, x='timestamp', y='humidity', title='Humidity Over Time')
-            st.plotly_chart(fig_hum, use_container_width=True)
+            st.markdown(f"""
+            <div style="background: rgba(250,250,250,0.9); padding: 20px; border-radius: 8px; 
+                        border: 1px solid rgba(0,0,0,0.05);">
+                <p style="color: #999; font-size: 11px; margin: 0; letter-spacing: 0.5px;">Total Records</p>
+                <h2 style="color: #2c2c2c; margin: 8px 0 0 0; font-weight: 300;">{len(df)}</h2>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            fig_env = go.Figure()
-            fig_env.add_trace(go.Scatter(x=df['timestamp'], y=df['temp'],
-                                        name='Temperature', yaxis='y'))
-            fig_env.add_trace(go.Scatter(x=df['timestamp'], y=df['humidity'],
-                                        name='Humidity', yaxis='y2'))
-            fig_env.update_layout(
-                title='Temperature & Humidity',
-                yaxis=dict(title='Temp (°C)'),
-                yaxis2=dict(title='Humidity (%)', overlaying='y', side='right')
-            )
-            st.plotly_chart(fig_env, use_container_width=True)
-    
-    with tab4:
-        col1, col2 = st.columns(2)
+            avg_hr = df['hr'].mean()
+            st.markdown(f"""
+            <div style="background: rgba(250,250,250,0.9); padding: 20px; border-radius: 8px; 
+                        border: 1px solid rgba(0,0,0,0.05);">
+                <p style="color: #999; font-size: 11px; margin: 0; letter-spacing: 0.5px;">Average HR</p>
+                <h2 style="color: #2c2c2c; margin: 8px 0 0 0; font-weight: 300;">{avg_hr:.1f} BPM</h2>
+            </div>
+            """, unsafe_allow_html=True)
         
-        with col1:
-            st.plotly_chart(create_activity_distribution(df), use_container_width=True)
-        
-        with col2:
-            fig_timeline = px.scatter(df, x='timestamp', y='activity',
-                                     color='activity', title='Activity Timeline', height=400)
-            st.plotly_chart(fig_timeline, use_container_width=True)
-        
-        st.subheader("📊 Activity Statistics")
-        activity_stats = df.groupby('activity').agg({
-            'hr': 'mean',
-            'temp': 'mean',
-        }).round(2)
-        activity_stats.columns = ['Avg HR', 'Avg Temp']
-        st.dataframe(activity_stats, use_container_width=True)
+        with col3:
+            avg_temp = df['temp'].mean()
+            st.markdown(f"""
+            <div style="background: rgba(250,250,250,0.9); padding: 20px; border-radius: 8px; 
+                        border: 1px solid rgba(0,0,0,0.05);">
+                <p style="color: #999; font-size: 11px; margin: 0; letter-spacing: 0.5px;">Average Temp</p>
+                <h2 style="color: #2c2c2c; margin: 8px 0 0 0; font-weight: 300;">{avg_temp:.1f}°C</h2>
+            </div>
+            """, unsafe_allow_html=True)
     
     # ============================================================================
-    # RAW DATA TABLE
+    # FOOTER - CLEAN STATUS
     # ============================================================================
-    with st.expander("📋 View Raw Data"):
-        st.dataframe(
-            df[['timestamp', 'id_user', 'activity', 'hr', 'spo2', 'temp', 
-                'humidity', 'ax', 'ay', 'az']].head(100),
-            use_container_width=True,
-            hide_index=True
-        )
-        
-        st.download_button(
-            label="📥 Download CSV",
-            data=df.to_csv(index=False).encode('utf-8'),
-            file_name=f"health_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # ============================================================================
-    # SYSTEM STATUS - FIXED TIMESTAMP COMPARISON
-    # ============================================================================
-    st.divider()
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.info(f"📊 Total Records: {len(df)}")
+        st.markdown("""
+        <div style="background: rgba(250,250,250,0.9); padding: 14px; border-radius: 4px; 
+                    border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #2c2c2c; margin: 0; font-size: 12px;">● System Online</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        if not df.empty:
-            # FIXED: Proper timezone-aware comparison
-            current_time = datetime.now(pytz.UTC)
-            latest_timestamp = df['timestamp'].max()
-            
-            # Ensure both are timezone-aware
-            if latest_timestamp.tzinfo is None:
-                latest_timestamp = latest_timestamp.replace(tzinfo=pytz.UTC)
-            
-            time_diff = (current_time - latest_timestamp).total_seconds()
-            
-            if time_diff < 60:
-                st.success(f"✅ Live: {time_diff:.0f}s ago")
-            else:
-                st.warning(f"⚠️ Last update: {time_diff/60:.0f}m ago")
+        current_time = datetime.now(pytz.UTC)
+        latest_timestamp = df['timestamp'].max()
+        if latest_timestamp.tzinfo is None:
+            latest_timestamp = latest_timestamp.replace(tzinfo=pytz.UTC)
+        time_diff = (current_time - latest_timestamp).total_seconds()
+        
+        status_text = f"Live: {time_diff:.0f}s ago" if time_diff < 60 else f"Updated: {time_diff/60:.0f}m ago"
+        
+        st.markdown(f"""
+        <div style="background: rgba(250,250,250,0.9); padding: 14px; border-radius: 4px; 
+                    border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #2c2c2c; margin: 0; font-size: 12px;">{status_text}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
-        st.info(f"👥 Active Users: {df['id_user'].nunique()}")
+        st.markdown(f"""
+        <div style="background: rgba(250,250,250,0.9); padding: 14px; border-radius: 4px; 
+                    border: 1px solid rgba(0,0,0,0.05);">
+            <p style="color: #2c2c2c; margin: 0; font-size: 12px;">Users: {df['id_user'].nunique()}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # ============================================================================
-    # AUTO-REFRESH
-    # ============================================================================
+    # Auto refresh
     if auto_refresh:
-        time.sleep(refresh_interval)
+        time.sleep(refresh_rate)
         st.rerun()
 
 if __name__ == "__main__":
