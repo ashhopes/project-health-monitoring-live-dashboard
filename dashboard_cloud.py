@@ -12,7 +12,7 @@ import pytz
 # 1. PAGE CONFIGURATION
 # ============================================================================
 st.set_page_config(
-    page_title=" Real-Time Health Monitoring System with LoRa | PS25046",
+    page_title="Health Monitor | UMPSA",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -21,11 +21,12 @@ st.set_page_config(
 # ============================================================================
 # 2. UMPSA BACKGROUND IMAGE FROM URL
 # ============================================================================
-UMPSA_IMAGE_URL = "umpsa.jpg"
+UMPSA_IMAGE_URL = "http://www.umpsa.edu.my/sites/default/files/slider/ZAF_1540-edit.jpg"
 
 st.markdown(f"""
 <style>
-
+    /* MUJI PHILOSOPHY: 無印良品 - Natural, Simple, Essential */
+    
     .main {{
         background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
                           url('{UMPSA_IMAGE_URL}');
@@ -213,31 +214,38 @@ def analyze_health_status(latest_data):
     temp = float(latest_data['temp'])
     humidity = float(latest_data['humidity'])
     
-    # CRITICAL ALERTS
-    if hr > 120 or hr < 40:
+    # CHECK FOR NO FINGER PLACEMENT (PRIORITY CHECK)
+    if hr == 0 and spo2 == 0:
+        alerts.append("👆 No Finger Detected on Sensor")
+        recommendations.append("Place finger on MAX30102 sensor to measure heart rate and SpO2")
+        if alert_level is None:
+            alert_level = 'info'
+    
+    # CRITICAL ALERTS (only check if values are being measured)
+    if hr > 120 or (hr > 0 and hr < 40):
         alerts.append(f"🚨 CRITICAL: Heart Rate {hr:.0f} BPM is {'too high' if hr > 120 else 'too low'}!")
         recommendations.append("Seek immediate medical attention")
         alert_level = 'critical'
     
-    if spo2 < 90:
+    if spo2 > 0 and spo2 < 90:
         alerts.append(f"🚨 CRITICAL: SpO2 {spo2:.0f}% is dangerously low!")
         recommendations.append("Immediate oxygen support may be needed")
         alert_level = 'critical'
     
-    # WARNING ALERTS
+    # WARNING ALERTS (only if values are being measured)
     if hr > 100 and hr <= 120:
         alerts.append(f"⚠️ WARNING: Elevated Heart Rate ({hr:.0f} BPM)")
         recommendations.append("Check for physical activity, stress, or environmental factors")
         if alert_level != 'critical':
             alert_level = 'warning'
     
-    if hr < 60 and hr >= 40:
+    if hr < 60 and hr > 0 and hr >= 40:
         alerts.append(f"⚠️ WARNING: Low Heart Rate ({hr:.0f} BPM)")
         recommendations.append("Monitor for symptoms of dizziness or fatigue")
         if alert_level != 'critical':
             alert_level = 'warning'
     
-    if spo2 < 95 and spo2 >= 90:
+    if spo2 > 0 and spo2 < 95 and spo2 >= 90:
         alerts.append(f"⚠️ WARNING: Low SpO2 ({spo2:.0f}%)")
         recommendations.append("Ensure adequate ventilation and monitor breathing")
         if alert_level != 'critical':
