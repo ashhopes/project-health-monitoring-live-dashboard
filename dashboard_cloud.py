@@ -9,7 +9,7 @@ import time
 import pytz
 
 # ============================================================================
-# 1. PAGE CONFIGURATION - MUJI MINIMALIST STYLE
+# 1. PAGE CONFIGURATION
 # ============================================================================
 st.set_page_config(
     page_title="Health Monitor | UMPSA",
@@ -27,7 +27,6 @@ st.markdown(f"""
 <style>
     /* MUJI PHILOSOPHY: 無印良品 - Natural, Simple, Essential */
     
-    /* Main background with UMPSA image URL */
     .main {{
         background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
                           url('{UMPSA_IMAGE_URL}');
@@ -37,7 +36,6 @@ st.markdown(f"""
         background-repeat: no-repeat;
     }}
     
-    /* Clean white cards with glassmorphism */
     .stMetric {{
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
@@ -53,7 +51,6 @@ st.markdown(f"""
         transform: translateY(-2px);
     }}
     
-    /* Typography - MUJI style */
     .stMetric label {{
         font-size: 12px !important;
         font-weight: 500 !important;
@@ -68,7 +65,6 @@ st.markdown(f"""
         color: #2c2c2c !important;
     }}
     
-    /* Sidebar - Clean minimal */
     [data-testid="stSidebar"] {{
         background: rgba(250, 250, 250, 0.95);
         backdrop-filter: blur(10px);
@@ -79,7 +75,6 @@ st.markdown(f"""
         color: #2c2c2c !important;
     }}
     
-    /* Headers - Minimal typography */
     h1 {{
         color: #2c2c2c !important;
         font-weight: 300 !important;
@@ -94,7 +89,6 @@ st.markdown(f"""
         font-weight: 400 !important;
     }}
     
-    /* Tabs - Minimal design */
     .stTabs [data-baseweb="tab-list"] {{
         gap: 0px;
         background-color: transparent;
@@ -119,7 +113,6 @@ st.markdown(f"""
         font-weight: 500;
     }}
     
-    /* Buttons - Minimal MUJI style */
     .stButton button {{
         background: #2c2c2c;
         color: white;
@@ -137,7 +130,6 @@ st.markdown(f"""
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }}
     
-    /* Download button */
     .stDownloadButton button {{
         background: #2c2c2c;
         color: white;
@@ -153,7 +145,6 @@ st.markdown(f"""
         background: #1a1a1a;
     }}
     
-    /* Alert boxes - Enhanced styling */
     .stAlert {{
         border-radius: 8px;
         border: none;
@@ -172,20 +163,26 @@ st.markdown(f"""
         }}
     }}
     
-    /* Remove excessive padding */
+    /* Data table styling */
+    .stDataFrame {{
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }}
+    
     .block-container {{
         padding-top: 2rem;
         padding-bottom: 1rem;
     }}
     
-    /* Clean dividers */
     hr {{
         border: none;
         border-top: 1px solid rgba(0,0,0,0.08);
         margin: 1.5rem 0;
     }}
     
-    /* Plotly charts background */
     .js-plotly-plot {{
         background: rgba(255, 255, 255, 0.9) !important;
         backdrop-filter: blur(10px);
@@ -207,11 +204,7 @@ TABLE_ID = "lora_sensor_logs"
 # 4. HEALTH ALERT SYSTEM
 # ============================================================================
 def analyze_health_status(latest_data):
-    """
-    Analyze health status and environmental factors
-    Returns: (alert_level, alert_messages, recommendations)
-    alert_level: 'critical', 'warning', 'info', or None
-    """
+    """Analyze health status and environmental factors"""
     alerts = []
     recommendations = []
     alert_level = None
@@ -221,7 +214,7 @@ def analyze_health_status(latest_data):
     temp = float(latest_data['temp'])
     humidity = float(latest_data['humidity'])
     
-    # ===== CRITICAL ALERTS =====
+    # CRITICAL ALERTS
     if hr > 120 or hr < 40:
         alerts.append(f"🚨 CRITICAL: Heart Rate {hr:.0f} BPM is {'too high' if hr > 120 else 'too low'}!")
         recommendations.append("Seek immediate medical attention")
@@ -232,7 +225,7 @@ def analyze_health_status(latest_data):
         recommendations.append("Immediate oxygen support may be needed")
         alert_level = 'critical'
     
-    # ===== WARNING ALERTS =====
+    # WARNING ALERTS
     if hr > 100 and hr <= 120:
         alerts.append(f"⚠️ WARNING: Elevated Heart Rate ({hr:.0f} BPM)")
         recommendations.append("Check for physical activity, stress, or environmental factors")
@@ -251,20 +244,17 @@ def analyze_health_status(latest_data):
         if alert_level != 'critical':
             alert_level = 'warning'
     
-    # ===== ENVIRONMENTAL FACTORS =====
-    # High Temperature Impact
+    # ENVIRONMENTAL FACTORS
     if temp > 30:
         alerts.append(f"🌡️ High Temperature: {temp:.1f}°C may affect vitals")
         recommendations.append("Consider cooling the environment")
         if alert_level is None:
             alert_level = 'info'
     
-    # High Humidity Impact
     if humidity > 70:
         alerts.append(f"💧 High Humidity: {humidity:.1f}% may cause discomfort")
         recommendations.append("Increase ventilation or use dehumidifier")
         
-        # Check if humidity is affecting HR/SpO2
         if hr > 90 or spo2 < 97:
             alerts.append("⚡ Humidity may be affecting heart rate and oxygen levels")
             recommendations.append("High humidity reduces breathing efficiency")
@@ -272,21 +262,18 @@ def analyze_health_status(latest_data):
         if alert_level is None:
             alert_level = 'info'
     
-    # Low Humidity Impact
     if humidity < 30:
         alerts.append(f"💧 Low Humidity: {humidity:.1f}% detected")
         recommendations.append("Low humidity can cause respiratory irritation")
         if alert_level is None:
             alert_level = 'info'
     
-    # Temperature-Humidity Combination (Heat Index)
     if temp > 28 and humidity > 60:
         alerts.append("🔥 High Heat Index: Temperature + Humidity combination detected")
         recommendations.append("Risk of heat stress - ensure hydration and rest")
         if alert_level == 'info':
             alert_level = 'warning'
     
-    # Cold Temperature Impact
     if temp < 18:
         alerts.append(f"❄️ Low Temperature: {temp:.1f}°C may affect circulation")
         recommendations.append("Ensure adequate heating and warm clothing")
@@ -326,7 +313,7 @@ def get_bigquery_client():
 # 6. DATA FETCHING
 # ============================================================================
 def get_user_list(client):
-    """Get list of unique users from database"""
+    """Get list of unique users"""
     query = f"""
     SELECT DISTINCT ID_user
     FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
@@ -342,7 +329,7 @@ def get_user_list(client):
         return ["All Users"]
 
 def fetch_latest_data(client, hours=1, selected_user="All Users", limit=500):
-    """Fetch data from BigQuery with optional user filter"""
+    """Fetch data from BigQuery"""
     
     if selected_user == "All Users":
         user_filter = ""
@@ -381,10 +368,10 @@ def fetch_latest_data(client, hours=1, selected_user="All Users", limit=500):
         return pd.DataFrame()
 
 # ============================================================================
-# 7. MINIMAL CHARTS
+# 7. CHARTS
 # ============================================================================
 def create_minimal_line_chart(df, y_col, title, color='#2c2c2c'):
-    """Create minimal line chart - MUJI style"""
+    """Create minimal line chart"""
     fig = go.Figure()
     
     fig.add_trace(go.Scatter(
@@ -496,6 +483,11 @@ def main():
         
         st.markdown("---")
         
+        st.markdown("**📋 Log Display:**")
+        log_limit = st.slider("Number of records to show", 10, 100, 50, step=10)
+        
+        st.markdown("---")
+        
         st.markdown("**🔄 Auto Refresh:**")
         auto_refresh = st.checkbox("Enable Auto Refresh", value=True, label_visibility="collapsed")
         if auto_refresh:
@@ -516,7 +508,7 @@ def main():
     # FETCH DATA
     # ============================================================================
     with st.spinner("⏳ Loading data..."):
-        df = fetch_latest_data(client, hours=hours, selected_user=selected_user)
+        df = fetch_latest_data(client, hours=hours, selected_user=selected_user, limit=500)
     
     if df.empty:
         st.warning(f"⚠️ No data found for {selected_user} in the last {hours} hour(s)")
@@ -526,7 +518,7 @@ def main():
     latest = df.iloc[0]
     
     # ============================================================================
-    # INTELLIGENT HEALTH ALERTS - TOP OF DASHBOARD
+    # INTELLIGENT HEALTH ALERTS
     # ============================================================================
     alert_level, alerts, recommendations = analyze_health_status(latest)
     
@@ -563,7 +555,6 @@ def main():
             st.markdown("---")
     
     else:
-        # All normal - show success message
         st.success("✅ **All vital signs within normal range** | Environment conditions optimal")
         st.markdown("---")
     
@@ -677,9 +668,9 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     
     # ============================================================================
-    # CHARTS
+    # TABS WITH CHARTS AND LOG TABLE
     # ============================================================================
-    tab1, tab2, tab3 = st.tabs(["📈 VITAL SIGNS", "🎯 MOTION DATA", "📊 STATISTICS"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 VITAL SIGNS", "🎯 MOTION DATA", "📊 STATISTICS", "📋 DATA LOG"])
     
     with tab1:
         col1, col2 = st.columns(2)
@@ -732,6 +723,69 @@ def main():
                 <h2 style="color: #2c2c2c; margin: 8px 0 0 0; font-weight: 300;">{avg_temp:.1f}°C</h2>
             </div>
             """, unsafe_allow_html=True)
+    
+    with tab4:
+        # ============================================================================
+        # DATA LOG TABLE - NEW TAB!
+        # ============================================================================
+        st.markdown("### 📋 Real-time Data Log")
+        st.caption(f"Showing latest {log_limit} records")
+        
+        # Prepare display dataframe
+        display_df = df.head(log_limit).copy()
+        
+        # Format timestamp for better readability
+        display_df['timestamp'] = display_df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Select and rename columns for display
+        display_columns = {
+            'timestamp': '🕐 Time',
+            'id_user': '👤 User',
+            'hr': '❤️ HR (BPM)',
+            'spo2': '💨 SpO2 (%)',
+            'temp': '🌡️ Temp (°C)',
+            'humidity': '💧 Humidity (%)',
+            'activity': '🎯 Activity',
+            'ax': '📐 Accel X',
+            'ay': '📐 Accel Y',
+            'az': '📐 Accel Z'
+        }
+        
+        display_df = display_df[list(display_columns.keys())].rename(columns=display_columns)
+        
+        # Round numerical values
+        for col in display_df.columns:
+            if display_df[col].dtype in ['float64', 'float32']:
+                display_df[col] = display_df[col].round(2)
+        
+        # Display the table
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            height=400
+        )
+        
+        # Summary statistics
+        st.markdown("---")
+        st.markdown("### 📊 Log Summary")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("📋 Records Shown", len(display_df))
+        
+        with col2:
+            time_range = (df['timestamp'].max() - df['timestamp'].min()).total_seconds() / 60
+            st.metric("⏱️ Time Span", f"{time_range:.1f} min")
+        
+        with col3:
+            activities = df.head(log_limit)['activity'].nunique()
+            st.metric("🎯 Activities", activities)
+        
+        with col4:
+            avg_hr_log = df.head(log_limit)['hr'].mean()
+            st.metric("❤️ Avg HR", f"{avg_hr_log:.0f} BPM")
     
     # ============================================================================
     # FOOTER
