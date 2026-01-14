@@ -135,11 +135,11 @@ st.markdown(f"""
         font-weight: 600;
     }}
     
-    /* Buttons - Dark Olive */
+    /* Buttons - BLACK TEXT ON CHAMPAGNE BACKGROUND */
     .stButton button {{
-        background: {COLORS['dark_olive']};
-        color: {COLORS['champagne']};
-        border: none;
+        background: rgba(247, 231, 206, 0.95);  /* Champagne background */
+        color: #2c2c2c;                         /* Black text */
+        border: 2px solid {COLORS['dark_olive']};  /* Olive border */
         border-radius: 4px;
         padding: 10px 24px;
         font-weight: 500;
@@ -149,14 +149,16 @@ st.markdown(f"""
     }}
     
     .stButton button:hover {{
-        background: {COLORS['olive']};
+        background: rgba(232, 212, 184, 0.98);  /* Darker champagne */
+        color: #1a1a1a;                         /* Darker black */
+        border: 2px solid {COLORS['olive']};   /* Lighter olive border */
         box-shadow: 0 2px 8px rgba(85, 107, 47, 0.3);
     }}
     
-    /* Download button */
+    /* Download button - DARK OLIVE (KEEP DIFFERENT) */
     .stDownloadButton button {{
-        background: {COLORS['dark_olive']};
-        color: {COLORS['champagne']};
+        background: {COLORS['dark_olive']};  /* Dark olive background */
+        color: #FFFFFF;                       /* White text for contrast */
         border: none;
         border-radius: 4px;
         padding: 10px 24px;
@@ -166,7 +168,8 @@ st.markdown(f"""
     }}
     
     .stDownloadButton button:hover {{
-        background: {COLORS['olive']};
+        background: {COLORS['olive']};  /* Lighter olive on hover */
+        box-shadow: 0 2px 8px rgba(85, 107, 47, 0.3);
     }}
     
     /* Alert boxes - Champagne with Olive borders */
