@@ -136,14 +136,10 @@ st.markdown(f"""
     }}
     
     /* Buttons - BLACK TEXT ON CHAMPAGNE BACKGROUND */
-    /* Buttons - Dark Olive */
     .stButton button {{
         background: rgba(247, 231, 206, 0.95);  /* Champagne background */
         color: #2c2c2c;                         /* Black text */
         border: 2px solid {COLORS['dark_olive']};  /* Olive border */
-        background: {COLORS['dark_olive']};
-        color: {COLORS['champagne']};
-        border: none;
         border-radius: 4px;
         padding: 10px 24px;
         font-weight: 500;
@@ -156,17 +152,13 @@ st.markdown(f"""
         background: rgba(232, 212, 184, 0.98);  /* Darker champagne */
         color: #1a1a1a;                         /* Darker black */
         border: 2px solid {COLORS['olive']};   /* Lighter olive border */
-        background: {COLORS['olive']};
         box-shadow: 0 2px 8px rgba(85, 107, 47, 0.3);
     }}
     
     /* Download button - DARK OLIVE (KEEP DIFFERENT) */
-    /* Download button */
     .stDownloadButton button {{
         background: {COLORS['dark_olive']};  /* Dark olive background */
         color: #FFFFFF;                       /* White text for contrast */
-        background: {COLORS['dark_olive']};
-        color: {COLORS['champagne']};
         border: none;
         border-radius: 4px;
         padding: 10px 24px;
@@ -178,7 +170,6 @@ st.markdown(f"""
     .stDownloadButton button:hover {{
         background: {COLORS['olive']};  /* Lighter olive on hover */
         box-shadow: 0 2px 8px rgba(85, 107, 47, 0.3);
-        background: {COLORS['olive']};
     }}
     
     /* Alert boxes - Champagne with Olive borders */
@@ -383,8 +374,6 @@ def fetch_latest_data(client, hours=1, selected_user="All Users", limit=2000):
     30Hz = 30 packets/second = 1800 packets/minute = 108,000 packets/hour
     Adjusted limit to handle high-frequency data
     """
-def fetch_latest_data(client, hours=1, selected_user="All Users", limit=500):
-    """Fetch data from BigQuery"""
     
     if selected_user == "All Users":
         user_filter = ""
@@ -430,7 +419,6 @@ def create_minimal_line_chart(df, y_col, title, color=COLORS['dark_olive']):
     Create minimal line chart with dark olive theme
     Optimized for 30Hz data - samples every Nth point for smooth rendering
     """
-    """Create minimal line chart with dark olive theme"""
     fig = go.Figure()
     
     # For 30Hz data, sample to ~500 points max for smooth chart rendering
@@ -444,8 +432,6 @@ def create_minimal_line_chart(df, y_col, title, color=COLORS['dark_olive']):
     fig.add_trace(go.Scatter(
         x=df_sampled['timestamp'],
         y=df_sampled[y_col],
-        x=df['timestamp'],
-        y=df[y_col],
         mode='lines',
         line=dict(color=color, width=2),
         fill='tozeroy',
@@ -564,7 +550,6 @@ def main():
         auto_refresh = st.checkbox("Enable Auto Refresh", value=True, label_visibility="collapsed")
         if auto_refresh:
             refresh_rate = st.slider("⏲️ Refresh Rate (seconds)", 3, 30, 5)  # Faster refresh for 30Hz
-            refresh_rate = st.slider("⏲️ Refresh Rate (seconds)", 5, 60, 10)
         
         st.markdown("---")
         
@@ -665,7 +650,6 @@ def main():
                     border: 1px solid rgba(85, 107, 47, 0.2); margin-bottom: 10px;">
             <p style="color: {COLORS['dark_olive']}; margin: 0; font-size: 12px;">
                 📊 Showing <strong>{len(df)}</strong> records for <strong>{selected_user}</strong>{rate_text}
-                📊 Showing <strong>{len(df)}</strong> records for <strong>{selected_user}</strong>
             </p>
         </div>
         """, unsafe_allow_html=True)
