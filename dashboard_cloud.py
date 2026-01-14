@@ -44,8 +44,7 @@ st.markdown(f"""
     ============================================ */
     
     .main {{
-        background-image: linear-gradient(rgba(247, 231, 206, 0.90), rgba(247, 231, 206, 0.90)), 
-                          url('{UMPSA_IMAGE_URL}');
+        background color: champagne;
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -501,7 +500,7 @@ def main():
         st.markdown(f"""
         <div style="text-align: right; padding: 15px 0;">
             <p style="color: {COLORS['text_light']}; font-size: 11px; margin: 0; letter-spacing: 0.5px;">🎓 DEVELOPED BY</p>
-            <h3 style="margin: 4px 0; font-weight: 600; color: {COLORS['dark_olive']};">UMPSA</h3>
+            <h3 style="margin: 4px 0; font-weight: 600; color: {COLORS['dark_olive']};">TG22051</h3>
             <p style="color: {COLORS['text_light']}; font-size: 10px; margin: 0;">Universiti Malaysia Pahang Al-Sultan Abdullah</p>
         </div>
         """, unsafe_allow_html=True)
