@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # ============================================================================
-# 2. LOAD UMPSA BACKGROUND IMAGE
+# 2. LOAD UMPSA BACKGROUND IMAGE (YOUR WALLPAPER)
 # ============================================================================
 def get_base64_image(image_path):
     """Convert image to base64 for CSS background"""
@@ -30,7 +30,7 @@ def get_base64_image(image_path):
             return base64.b64encode(img_file.read()).decode()
     except:
         # Try alternative paths
-        for path in ["umpsa.png", "./umpsa.png", "../umpsa.png"]:
+        for path in ["umpsa.png", "./umpsa.png", "../umpsa.png", "assets/umpsa.png"]:
             try:
                 with open(path, "rb") as img_file:
                     return base64.b64encode(img_file.read()).decode()
@@ -38,10 +38,10 @@ def get_base64_image(image_path):
                 continue
         return None
 
-# Load UMPSA wallpaper
+# Load UMPSA wallpaper (YOUR IMAGE!)
 umpsa_bg = get_base64_image("umpsa.png")
 
-# MUJI-style CSS with UMPSA wallpaper
+# MUJI-style CSS with YOUR UMPSA wallpaper
 if umpsa_bg:
     background_style = f"""
     background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
@@ -52,6 +52,7 @@ if umpsa_bg:
     background-repeat: no-repeat;
     """
 else:
+    # Fallback if image not found
     background_style = """
     background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
     """
@@ -61,15 +62,15 @@ st.markdown(f"""
     /* ============================================
        MUJI PHILOSOPHY: 無印良品
        - Natural, Simple, Essential
-       - Minimal colors, maximum function
+       - YOUR UMPSA Wallpaper Background
     ============================================ */
     
-    /* Main background with UMPSA wallpaper */
+    /* Main background with YOUR UMPSA wallpaper */
     .main {{
         {background_style}
     }}
     
-    /* Clean white cards with subtle shadows */
+    /* Clean white cards with glassmorphism */
     .stMetric {{
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
@@ -85,7 +86,7 @@ st.markdown(f"""
         transform: translateY(-2px);
     }}
     
-    /* Typography - Clean and readable (MUJI style) */
+    /* Typography - MUJI style */
     .stMetric label {{
         font-size: 12px !important;
         font-weight: 500 !important;
@@ -111,7 +112,7 @@ st.markdown(f"""
         color: #2c2c2c !important;
     }}
     
-    /* Headers - Minimal Japanese typography influence */
+    /* Headers - Minimal typography */
     h1 {{
         color: #2c2c2c !important;
         font-weight: 300 !important;
@@ -169,11 +170,32 @@ st.markdown(f"""
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }}
     
+    /* Download button - Special styling */
+    .stDownloadButton button {{
+        background: #2c2c2c;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 10px 24px;
+        font-weight: 400;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+    }}
+    
+    .stDownloadButton button:hover {{
+        background: #1a1a1a;
+    }}
+    
     /* Info boxes - Clean and subtle */
     .stAlert {{
         border-radius: 4px;
         border: 1px solid rgba(0,0,0,0.08);
         background: rgba(250, 250, 250, 0.9);
+    }}
+    
+    /* Selectbox - Clean styling */
+    .stSelectbox {{
+        background: rgba(255, 255, 255, 0.9);
     }}
     
     /* Remove excessive padding */
@@ -235,10 +257,33 @@ def get_bigquery_client():
         return None
 
 # ============================================================================
-# 5. DATA FETCHING
+# 5. DATA FETCHING (WITH USER FILTER)
 # ============================================================================
-def fetch_latest_data(client, hours=1, limit=500):
-    """Fetch data from BigQuery"""
+def get_user_list(client):
+    """Get list of unique users from database"""
+    query = f"""
+    SELECT DISTINCT ID_user
+    FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
+    WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+    ORDER BY ID_user
+    """
+    try:
+        df = client.query(query).to_dataframe()
+        if not df.empty:
+            return ["All Users"] + df['ID_user'].tolist()
+        return ["All Users"]
+    except:
+        return ["All Users"]
+
+def fetch_latest_data(client, hours=1, selected_user="All Users", limit=500):
+    """Fetch data from BigQuery with optional user filter"""
+    
+    # Build query with user filter
+    if selected_user == "All Users":
+        user_filter = ""
+    else:
+        user_filter = f"AND ID_user = '{selected_user}'"
+    
     query = f"""
     SELECT 
         ID_user,
@@ -252,6 +297,7 @@ def fetch_latest_data(client, hours=1, limit=500):
         activity
     FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`
     WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
+    {user_filter}
     ORDER BY timestamp DESC
     LIMIT {limit}
     """
@@ -344,7 +390,7 @@ def create_minimal_bar_chart(df):
 # 7. MAIN DASHBOARD - MUJI MINIMALIST
 # ============================================================================
 def main():
-    # Header with UMPSA branding - Minimal style
+    # Header with UMPSA branding
     col1, col2 = st.columns([3, 1])
     
     with col1:
@@ -374,12 +420,30 @@ def main():
         return
     
     # ============================================================================
-    # SIDEBAR - MINIMAL CONTROLS
+    # SIDEBAR - CONTROLS + USER SELECTOR
     # ============================================================================
     with st.sidebar:
-        st.markdown("### Settings")
+        st.markdown("### ⚙️ Settings")
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # FEATURE 1: USER SELECTOR ⭐
+        st.markdown("**Select User to Monitor:**")
+        user_list = get_user_list(client)
+        selected_user = st.selectbox(
+            "User",
+            options=user_list,
+            index=0,
+            label_visibility="collapsed"
+        )
+        
+        if selected_user == "All Users":
+            st.info("👥 Monitoring all users")
+        else:
+            st.success(f"👤 Monitoring: {selected_user}")
+        
+        st.markdown("---")
+        
+        # Time range selector
         hours = st.select_slider(
             "Time Range",
             options=[1, 3, 6, 12, 24],
@@ -389,13 +453,15 @@ def main():
         
         st.markdown("---")
         
+        # Auto refresh
         auto_refresh = st.checkbox("Auto Refresh", value=True)
         if auto_refresh:
             refresh_rate = st.slider("Refresh Rate (seconds)", 5, 60, 10)
         
         st.markdown("---")
         
-        if st.button("Refresh Now", use_container_width=True):
+        # Manual refresh
+        if st.button("🔄 Refresh Now", use_container_width=True):
             st.rerun()
         
         st.markdown("---")
@@ -404,19 +470,48 @@ def main():
         st.caption(f"Updated: {current_time.strftime('%H:%M:%S UTC')}")
     
     # ============================================================================
-    # FETCH DATA
+    # FETCH DATA (WITH USER FILTER)
     # ============================================================================
-    with st.spinner("Loading..."):
-        df = fetch_latest_data(client, hours=hours)
+    with st.spinner("Loading data..."):
+        df = fetch_latest_data(client, hours=hours, selected_user=selected_user)
     
     if df.empty:
-        st.warning("No data available")
+        st.warning(f"⚠️ No data found for {selected_user} in the last {hours} hour(s)")
+        st.info("Try selecting 'All Users' or increasing the time range")
         return
     
     latest = df.iloc[0]
     
     # ============================================================================
-    # METRICS - MINIMAL CARDS (MUJI STYLE)
+    # FEATURE 3: CSV DOWNLOAD BUTTON ⭐
+    # ============================================================================
+    col_left, col_right = st.columns([3, 1])
+    
+    with col_right:
+        # Prepare CSV data
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        filename = f"health_data_{selected_user}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        st.download_button(
+            label="📥 Download CSV",
+            data=csv_data,
+            file_name=filename,
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    with col_left:
+        st.markdown(f"""
+        <div style="background: rgba(250,250,250,0.9); padding: 12px; border-radius: 4px; 
+                    border: 1px solid rgba(0,0,0,0.05); margin-bottom: 10px;">
+            <p style="color: #2c2c2c; margin: 0; font-size: 12px;">
+                📊 Showing {len(df)} records for <strong>{selected_user}</strong>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ============================================================================
+    # METRICS - MINIMAL CARDS
     # ============================================================================
     col1, col2, col3, col4, col5 = st.columns(5)
     
@@ -560,7 +655,7 @@ def main():
             """, unsafe_allow_html=True)
     
     # ============================================================================
-    # FOOTER - CLEAN STATUS
+    # FOOTER - STATUS
     # ============================================================================
     st.markdown("<br>", unsafe_allow_html=True)
     
