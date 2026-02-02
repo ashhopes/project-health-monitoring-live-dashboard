@@ -1,3 +1,4 @@
+@ -1,894 +1,894 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -44,7 +45,8 @@ st.markdown(f"""
     ============================================ */
     
     .main {{
-        background color: champagne;
+        background-image: linear-gradient(rgba(247, 231, 206, 0.90), rgba(247, 231, 206, 0.90)), 
+                          url('{UMPSA_IMAGE_URL}');
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -500,7 +502,7 @@ def main():
         st.markdown(f"""
         <div style="text-align: right; padding: 15px 0;">
             <p style="color: {COLORS['text_light']}; font-size: 11px; margin: 0; letter-spacing: 0.5px;">🎓 DEVELOPED BY</p>
-            <h3 style="margin: 4px 0; font-weight: 600; color: {COLORS['dark_olive']};">TG22051</h3>
+            <h3 style="margin: 4px 0; font-weight: 600; color: {COLORS['dark_olive']};">UMPSA</h3>
             <p style="color: {COLORS['text_light']}; font-size: 10px; margin: 0;">Universiti Malaysia Pahang Al-Sultan Abdullah</p>
         </div>
         """, unsafe_allow_html=True)
@@ -718,6 +720,7 @@ def main():
     
     with col5:
         activity_val = str(latest['activity'])
+        activity_icons = {"resting": "🛌", "briskwalk": "🚶", "walking": "🚶", "running": "🏃", "jogging": "🏃"}
         activity_icons = {"resting": "🛌", "briskwalk": "🚶", "running": "🏃"}
         activity_icon = activity_icons.get(activity_val.lower(), "🏃")
         
