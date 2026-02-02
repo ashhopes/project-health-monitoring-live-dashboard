@@ -1,18 +1,34 @@
+# ============================================================================
+# Updated Requirements for Health Monitoring Dashboard
+# ============================================================================
+
+# Streamlit
 streamlit
+streamlit-autorefresh
+
+# Data Processing
 pandas
 numpy
+
+# Visualization
 plotly
-requests
-streamlit-autorefresh
-pyserial
+
+# Google Cloud & BigQuery
 google-cloud-bigquery
+db-dtypes  # ✅ CRITICAL: Required for BigQuery data types
 google-auth
-python-dotenv
+google-auth-oauthlib
+google-auth-httplib2
+oauth2client
+gspread
+
+# Serial Communication
+pyserial
+
+# Other
+requests
 Flask
 PyGithub
 schedule
 pytz
-gspread
-google-auth-oauthlib
-google-auth-httplib2
-oauth2client
+python-dotenv
